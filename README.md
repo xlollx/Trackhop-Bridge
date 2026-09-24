@@ -9,6 +9,10 @@ that have no open API, or whose official route is heavy for a single user, throu
 interfaces their own players use. Songport discovers this app when installed and offers those
 services; it never includes, downloads or installs it.
 
+> **Using Songport from GitHub or F-Droid? You do not need this app.** Since Songport 1.0.44 these
+> connectors are built into those versions: add the service in Songport's Accounts and sign in there.
+> The Bridge is kept for the Google Play version of Songport, which contains official APIs only.
+
 It is distributed **only here, as an APK**, never on Google Play. The Songport build on Google Play
 uses only official APIs and never mentions or links to this app.
 
