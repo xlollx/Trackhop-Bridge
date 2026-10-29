@@ -39,8 +39,8 @@
     <string name="update_channel">Güncellemeler</string>
     <string name="update_notification_title">Trackhop Bridge %1$s yayınlandı</string>
     <string name="update_notification_text">Sürümü GitHub\'da açmak için dokun.</string>
-    <string name="deezer_intro">Beta. Deezer artık izin vermediği için geliştirici uygulaması oluşturmak yerine Deezer\'ın kendi sayfasında oturum açın. Şifrenizi yalnızca o sayfaya yazarsınız: bu uygulama onu asla görmez ve saklamaz. Saklanan yalnızca oturumdur (çerezler), bu telefonda şifrelenmiş olarak; Trackhop yalnızca çalma listelerinizi ve parçalarınızı alır.</string>
+    <string name="deezer_intro">Alfa: henüz gerçek hesaplarda denenmedi. Önce bir test çalma listesinde deneyin ve sorunları bildirin. Deezer artık izin vermediği için geliştirici uygulaması oluşturmak yerine Deezer\'ın kendi sayfasında oturum açın. Şifrenizi yalnızca o sayfaya yazarsınız: bu uygulama onu asla görmez ve saklamaz. Saklanan yalnızca oturumdur (çerezler), bu telefonda şifrelenmiş olarak; Trackhop yalnızca çalma listelerinizi ve parçalarınızı alır.</string>
     <string name="deezer_connect">Deezer\'da oturum aç</string>
-    <string name="soundcloud_intro">Beta. Setlerinizi ve beğendiğiniz parçaları kullanmak için SoundCloud\'un kendi sayfasında oturum açın. Şifrenizi yalnızca o sayfaya yazarsınız: bu uygulama onu asla görmez ve saklamaz. Saklanan yalnızca oturumdur (çerezler), bu telefonda şifrelenmiş olarak; Trackhop yalnızca çalma listelerinizi ve parçalarınızı alır.</string>
+    <string name="soundcloud_intro">Alfa: henüz gerçek hesaplarda denenmedi. Önce bir test çalma listesinde deneyin ve sorunları bildirin. Setlerinizi ve beğendiğiniz parçaları kullanmak için SoundCloud\'un kendi sayfasında oturum açın. Şifrenizi yalnızca o sayfaya yazarsınız: bu uygulama onu asla görmez ve saklamaz. Saklanan yalnızca oturumdur (çerezler), bu telefonda şifrelenmiş olarak; Trackhop yalnızca çalma listelerinizi ve parçalarınızı alır.</string>
     <string name="soundcloud_connect">SoundCloud\'da oturum aç</string>
 </resources>

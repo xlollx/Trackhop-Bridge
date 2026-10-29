@@ -39,8 +39,8 @@
     <string name="update_channel">アップデート</string>
     <string name="update_notification_title">Trackhop Bridge %1$s が利用可能です</string>
     <string name="update_notification_text">タップすると GitHub のリリースを開きます。</string>
-    <string name="deezer_intro">ベータ版。Deezer はもう開発者アプリの作成を受け付けていないため、Deezer 自身のページでログインします。パスワードを入力するのはそのページだけで、このアプリがそれを見たり保存したりすることはありません。保存されるのはセッション（Cookie）だけで、この端末に暗号化して保存されます。Trackhop が受け取るのはプレイリストと曲だけです。</string>
+    <string name="deezer_intro">アルファ版：実際のアカウントではまだ検証していません。まずテスト用のプレイリストで試し、問題があれば報告してください。Deezer はもう開発者アプリの作成を受け付けていないため、Deezer 自身のページでログインします。パスワードを入力するのはそのページだけで、このアプリがそれを見たり保存したりすることはありません。保存されるのはセッション（Cookie）だけで、この端末に暗号化して保存されます。Trackhop が受け取るのはプレイリストと曲だけです。</string>
     <string name="deezer_connect">Deezer にログイン</string>
-    <string name="soundcloud_intro">ベータ版。プレイリストと「いいね」した曲を使うために、SoundCloud 自身のページでログインします。パスワードを入力するのはそのページだけで、このアプリがそれを見たり保存したりすることはありません。保存されるのはセッション（Cookie）だけで、この端末に暗号化して保存されます。Trackhop が受け取るのはプレイリストと曲だけです。</string>
+    <string name="soundcloud_intro">アルファ版：実際のアカウントではまだ検証していません。まずテスト用のプレイリストで試し、問題があれば報告してください。プレイリストと「いいね」した曲を使うために、SoundCloud 自身のページでログインします。パスワードを入力するのはそのページだけで、このアプリがそれを見たり保存したりすることはありません。保存されるのはセッション（Cookie）だけで、この端末に暗号化して保存されます。Trackhop が受け取るのはプレイリストと曲だけです。</string>
     <string name="soundcloud_connect">SoundCloud にログイン</string>
 </resources>

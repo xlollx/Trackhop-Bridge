@@ -39,8 +39,8 @@
     <string name="update_channel">Mises à jour</string>
     <string name="update_notification_title">Trackhop Bridge %1$s est disponible</string>
     <string name="update_notification_text">Touchez pour ouvrir la version sur GitHub.</string>
-    <string name="deezer_intro">Bêta. Connectez-vous sur la page de Deezer au lieu de créer une app développeur, ce que Deezer ne permet plus. Vous tapez votre mot de passe uniquement sur cette page : cette app ne le voit ni ne l\'enregistre. Seule la session (cookies) est conservée, chiffrée sur ce téléphone ; Trackhop ne reçoit que vos playlists et titres.</string>
+    <string name="deezer_intro">Alpha : pas encore testé sur de vrais comptes. Essayez-le d\'abord sur une playlist de test et signalez les problèmes. Connectez-vous sur la page de Deezer au lieu de créer une app développeur, ce que Deezer ne permet plus. Vous tapez votre mot de passe uniquement sur cette page : cette app ne le voit ni ne l\'enregistre. Seule la session (cookies) est conservée, chiffrée sur ce téléphone ; Trackhop ne reçoit que vos playlists et titres.</string>
     <string name="deezer_connect">Se connecter à Deezer</string>
-    <string name="soundcloud_intro">Bêta. Connectez-vous sur la page de SoundCloud pour utiliser vos playlists et titres aimés. Vous tapez votre mot de passe uniquement sur cette page : cette app ne le voit ni ne l\'enregistre. Seule la session (cookies) est conservée, chiffrée sur ce téléphone ; Trackhop ne reçoit que vos playlists et titres.</string>
+    <string name="soundcloud_intro">Alpha : pas encore testé sur de vrais comptes. Essayez-le d\'abord sur une playlist de test et signalez les problèmes. Connectez-vous sur la page de SoundCloud pour utiliser vos playlists et titres aimés. Vous tapez votre mot de passe uniquement sur cette page : cette app ne le voit ni ne l\'enregistre. Seule la session (cookies) est conservée, chiffrée sur ce téléphone ; Trackhop ne reçoit que vos playlists et titres.</string>
     <string name="soundcloud_connect">Se connecter à SoundCloud</string>
 </resources>

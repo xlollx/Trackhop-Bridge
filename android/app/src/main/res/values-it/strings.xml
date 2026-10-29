@@ -39,8 +39,8 @@
     <string name="update_channel">Aggiornamenti</string>
     <string name="update_notification_title">È disponibile Trackhop Bridge %1$s</string>
     <string name="update_notification_text">Tocca per aprire la release su GitHub.</string>
-    <string name="deezer_intro">Beta. Accedi dalla pagina di Deezer invece di creare un\'app da sviluppatore, cosa che Deezer non consente più. La password la digiti solo su quella pagina: questa app non la vede e non la salva. Resta solo la sessione (i cookie), cifrata su questo telefono; Trackhop riceve solo playlist e brani.</string>
+    <string name="deezer_intro">Alpha: non ancora provato su account reali. Provalo prima su una playlist di test e segnala i problemi. Accedi dalla pagina di Deezer invece di creare un\'app da sviluppatore, cosa che Deezer non consente più. La password la digiti solo su quella pagina: questa app non la vede e non la salva. Resta solo la sessione (i cookie), cifrata su questo telefono; Trackhop riceve solo playlist e brani.</string>
     <string name="deezer_connect">Accedi a Deezer</string>
-    <string name="soundcloud_intro">Beta. Accedi dalla pagina di SoundCloud per usare le tue playlist e i brani che ti piacciono. La password la digiti solo su quella pagina: questa app non la vede e non la salva. Resta solo la sessione (i cookie), cifrata su questo telefono; Trackhop riceve solo playlist e brani.</string>
+    <string name="soundcloud_intro">Alpha: non ancora provato su account reali. Provalo prima su una playlist di test e segnala i problemi. Accedi dalla pagina di SoundCloud per usare le tue playlist e i brani che ti piacciono. La password la digiti solo su quella pagina: questa app non la vede e non la salva. Resta solo la sessione (i cookie), cifrata su questo telefono; Trackhop riceve solo playlist e brani.</string>
     <string name="soundcloud_connect">Accedi a SoundCloud</string>
 </resources>

@@ -51,11 +51,12 @@ its other services, and keep a playlist sync running, without developer accounts
 | Amazon Music | playlists, search, create, add, remove, delete | none: Amazon's Web API is a closed beta for approved partners |
 | Spotify | your playlists through the web player, without registering a developer app and without Premium | OAuth with your own client ID |
 | Apple Music | sign-in without the Apple Developer Program | MusicKit with your own developer token (99 €/year) |
-| Deezer (beta, from 1.5.0) | playlists with ISRCs, favourite tracks, search, create, add, remove, rename, delete, without a developer app | OAuth with your own app ID, for those who still have one: Deezer no longer registers new apps |
-| SoundCloud (beta, from 1.5.0) | your sets and liked tracks, search, create, add, remove, reorder, rename, public/private, delete; public set links too | none: SoundCloud's API no longer takes new registrations |
+| Deezer (alpha, from 1.5.0) | playlists with ISRCs, favourite tracks, search, create, add, remove, rename, delete, without a developer app | OAuth with your own app ID, for those who still have one: Deezer no longer registers new apps |
+| SoundCloud (alpha, from 1.5.0) | your sets and liked tracks, search, create, add, remove, reorder, rename, public/private, delete; public set links too | none: SoundCloud's API no longer takes new registrations |
 
-Deezer and SoundCloud need Trackhop 1.3.0 or newer. Both are beta: the notice below is shown again
-before their first sign-in, since it now names them.
+Deezer and SoundCloud need Trackhop 1.3.0 or newer. Both are alpha: not yet tested on real accounts,
+so try them on a test playlist first and report problems. The notice below is shown again before
+their first sign-in, since it now names them.
 
 ## Read this before installing
 

@@ -39,8 +39,8 @@
     <string name="update_channel">Atualizações</string>
     <string name="update_notification_title">Trackhop Bridge %1$s está disponível</string>
     <string name="update_notification_text">Toque para abrir a versão no GitHub.</string>
-    <string name="deezer_intro">Beta. Entre pela própria página do Deezer em vez de criar um app de desenvolvedor, o que o Deezer não permite mais. Você digita a senha só nessa página: este app nunca a vê nem a guarda. O que fica guardado é a sessão (cookies), criptografada neste celular; o Trackhop recebe só suas playlists e faixas.</string>
+    <string name="deezer_intro">Alfa: ainda não testado em contas reais. Experimente primeiro numa playlist de teste e relate os problemas. Entre pela própria página do Deezer em vez de criar um app de desenvolvedor, o que o Deezer não permite mais. Você digita a senha só nessa página: este app nunca a vê nem a guarda. O que fica guardado é a sessão (cookies), criptografada neste celular; o Trackhop recebe só suas playlists e faixas.</string>
     <string name="deezer_connect">Entrar no Deezer</string>
-    <string name="soundcloud_intro">Beta. Entre pela própria página do SoundCloud para usar suas playlists e faixas curtidas. Você digita a senha só nessa página: este app nunca a vê nem a guarda. O que fica guardado é a sessão (cookies), criptografada neste celular; o Trackhop recebe só suas playlists e faixas.</string>
+    <string name="soundcloud_intro">Alfa: ainda não testado em contas reais. Experimente primeiro numa playlist de teste e relate os problemas. Entre pela própria página do SoundCloud para usar suas playlists e faixas curtidas. Você digita a senha só nessa página: este app nunca a vê nem a guarda. O que fica guardado é a sessão (cookies), criptografada neste celular; o Trackhop recebe só suas playlists e faixas.</string>
     <string name="soundcloud_connect">Entrar no SoundCloud</string>
 </resources>
