@@ -6,14 +6,14 @@
 YouTube Music, Amazon Music, Spotify and Apple Music through their own web players. Your sign-ins stay on your phone.</p>
 
 <p align="center">
-  <a href="https://github.com/xlollx/Songport-YTM-Bridge/releases/latest"><img src="https://img.shields.io/github/v/release/xlollx/Songport-YTM-Bridge?label=release" alt="Latest release"></a>
-  <a href="https://github.com/xlollx/Songport-YTM-Bridge/releases"><img src="https://img.shields.io/github/downloads/xlollx/Songport-YTM-Bridge/total" alt="Downloads"></a>
+  <a href="https://github.com/xlollx/Trackhop-Bridge/releases/latest"><img src="https://img.shields.io/github/v/release/xlollx/Trackhop-Bridge?label=release" alt="Latest release"></a>
+  <a href="https://github.com/xlollx/Trackhop-Bridge/releases"><img src="https://img.shields.io/github/downloads/xlollx/Trackhop-Bridge/total" alt="Downloads"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3ddc84" alt="Android 8.0+">
 </p>
 
 <p align="center">
-  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/xlollx/Songport-YTM-Bridge"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" height="64" alt="Get it on Obtainium"></a>
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/xlollx/Trackhop-Bridge"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" height="64" alt="Get it on Obtainium"></a>
 </p>
 
 Optional companion app for [Trackhop](https://github.com/xlollx/Trackhop). It connects music services
@@ -160,13 +160,13 @@ fingerprint in `Allowed.SHA256`, otherwise the two apps will not talk to each ot
 
 The Bridge is in open beta together with Trackhop. It is the part most exposed to changes on the
 services' side, so "it worked yesterday" reports are expected and welcome: open an
-[issue](https://github.com/xlollx/Songport-YTM-Bridge/issues/new/choose) with Trackhop's technical
+[issue](https://github.com/xlollx/Trackhop-Bridge/issues/new/choose) with Trackhop's technical
 details report (Settings → *Sync log* → *Share technical details*), which includes the plugin
 statistics, and for Amazon Music the file from the **Capture traffic** screen.
 
 ## Install
 
-1. Download the latest APK from the [Releases](https://github.com/xlollx/Songport-YTM-Bridge/releases) page.
+1. Download the latest APK from the [Releases](https://github.com/xlollx/Trackhop-Bridge/releases) page.
 2. Install it (Android asks to allow installs from your browser or file manager once).
 3. Open the Bridge, accept the disclaimer and sign in to the services you want.
 4. In Trackhop: Accounts → **+** → pick the service → give the connector a name → **Connect**.

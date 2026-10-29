@@ -139,7 +139,7 @@ private fun Screen() {
             },
             modifier = Modifier.fillMaxWidth(),
         ) { Text(stringResource(R.string.open_trackhop)) }
-        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/xlollx/Songport-YTM-Bridge"))) }) {
+        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/xlollx/Trackhop-Bridge"))) }) {
             Text(stringResource(R.string.source_code))
         }
         var langOpen by remember { mutableStateOf(false) }
