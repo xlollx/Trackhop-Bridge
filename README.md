@@ -16,10 +16,18 @@ YouTube Music, Amazon Music, Spotify and Apple Music through their own web playe
   <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/xlollx/Trackhop-Bridge"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" height="64" alt="Get it on Obtainium"></a>
 </p>
 
-Optional companion app for [Trackhop](https://github.com/xlollx/Trackhop). It connects music services
-that have no open API, or whose official route is heavy for a single user, through the same web
-interfaces their own players use. Trackhop discovers this app when installed and offers those
-services; it never includes, downloads or installs it.
+Trackhop Bridge is the connector plugin for [Trackhop](https://github.com/xlollx/Trackhop): it gives
+Trackhop's Google Play version YouTube Music, Amazon Music, and Spotify and Apple Music sign-in
+without developer keys, the same web connectors the GitHub and F-Droid versions carry inside.
+
+**Who needs it:** only people who installed Trackhop from Google Play. Trackhop's GitHub and F-Droid
+versions already contain these connectors and do not need it: add the service in Trackhop's Accounts
+and sign in there. Not sure which one you have? See
+[Which Trackhop?](https://xlollx.github.io/Trackhop/guide/versions)
+
+It is an Android app distributed **only here, as an APK**, never on Google Play. The Trackhop build on
+Google Play uses only official APIs and never mentions or links to this app. As a Trackhop plugin,
+the Bridge is found by Trackhop when installed; Trackhop never includes, downloads or installs it.
 
 > **Songport Bridge is now Trackhop Bridge**, because Songport is now Trackhop. Same app, same code,
 > same updates. The name changed because an unrelated service called "SongPort", a music link
@@ -28,12 +36,12 @@ services; it never includes, downloads or installs it.
 > (`com.xlollx.songport.ytmbridge`), this repository's address and the release file names
 > (`SongportYtmBridge-vX.apk`) stay as they were, so existing installs and update tools keep working.
 
-> **Using Trackhop from GitHub or F-Droid? You do not need this app.** These connectors are built into
-> those versions: add the service in Trackhop's Accounts and sign in there. The Bridge is kept for the
-> Google Play version of Trackhop, which contains official APIs only.
+## What it adds
 
-It is distributed **only here, as an APK**, never on Google Play. The Trackhop build on Google Play
-uses only official APIs and never mentions or links to this app.
+The Bridge connects music services that have no open API, or whose official route is heavy for a
+single user, through the same web interfaces their own players use. Trackhop can then read and edit
+your YouTube Music playlists and Amazon Music playlists, transfer playlists between them and its
+other services, and keep a playlist sync running, without developer accounts.
 
 | Service | What it adds | Official route in Trackhop |
 |---------|--------------|----------------------------|
@@ -56,6 +64,24 @@ uses only official APIs and never mentions or links to this app.
   accounts, on the services' own pages, and the app reads and edits your own playlists.
 - **Your passwords are never seen or stored.** You type them only on the services' pages inside the
   WebView. What the app keeps is the session (cookies), encrypted with the Android Keystore.
+
+## Install
+
+1. Download the latest APK (`SongportYtmBridge-vX.Y.Z.apk`) from the
+   [Releases](https://github.com/xlollx/Trackhop-Bridge/releases) page, or add
+   `https://github.com/xlollx/Trackhop-Bridge` to [Obtainium](https://github.com/ImranR98/Obtainium),
+   which then keeps it updated.
+2. Install it (Android asks once to allow installs from your browser, file manager or Obtainium).
+3. Open the Bridge, accept the disclaimer and sign in to the services you want.
+4. In Trackhop, open Accounts › **+**: the Bridge's services appear in the list. Pick one, give the
+   connector a name and tap **Connect**.
+
+From Trackhop 1.2.5, Settings › Plugins lists the Bridge with its version.
+
+Updates: install the new APK over the old one, or let Obtainium do it (see [Update check](#update-check)).
+The app is in English, Italian, German, Spanish, French, Brazilian Portuguese, Polish, Russian,
+Turkish, Japanese, Korean and Chinese, the same languages as Trackhop, with a language picker on its
+main screen.
 
 ## Where the code comes from
 
@@ -163,17 +189,6 @@ services' side, so "it worked yesterday" reports are expected and welcome: open 
 [issue](https://github.com/xlollx/Trackhop-Bridge/issues/new/choose) with Trackhop's technical
 details report (Settings → *Sync log* → *Share technical details*), which includes the plugin
 statistics, and for Amazon Music the file from the **Capture traffic** screen.
-
-## Install
-
-1. Download the latest APK from the [Releases](https://github.com/xlollx/Trackhop-Bridge/releases) page.
-2. Install it (Android asks to allow installs from your browser or file manager once).
-3. Open the Bridge, accept the disclaimer and sign in to the services you want.
-4. In Trackhop: Accounts → **+** → pick the service → give the connector a name → **Connect**.
-
-Updates: install the new APK over the old one. The app is in English, Italian, German, Spanish,
-French, Brazilian Portuguese, Polish, Russian, Turkish, Japanese, Korean and Chinese, the same
-languages as Trackhop, with a language picker on its main screen.
 
 ## Update check
 
