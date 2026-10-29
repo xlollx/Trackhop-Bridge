@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SongportYtmBridge"
+rootProject.name = "TrackhopBridge"
 include ':app'
 // Trackhop's web connectors, copied unchanged by scripts/sync-from-trackhop.sh (see UPSTREAM).
 include ':bridge'

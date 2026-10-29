@@ -68,7 +68,7 @@ class UpdatesTest {
     @Test fun parsesGitHubsAnswer() {
         val json = """{"tag_name":"v1.4.2","html_url":"$url","draft":false,"prerelease":false,
             "body":"<!-- bridge.json {\"versionCode\":36,\"versionName\":\"1.4.2\",\"minTrackhop\":87,\"minTrackhopName\":\"1.2.4\"} -->\n**Full Changelog**: ...",
-            "assets":[{"name":"SongportYtmBridge-v1.4.2.apk"},{"name":"bridge.json"}]}"""
+            "assets":[{"name":"TrackhopBridge-v1.4.2.apk"},{"name":"bridge.json"}]}"""
         assertEquals(release(), Updates.parseRelease(json))
     }
 

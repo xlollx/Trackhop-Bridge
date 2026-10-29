@@ -33,8 +33,10 @@ the Bridge is found by Trackhop when installed; Trackhop never includes, downloa
 > same updates. The name changed because an unrelated service called "SongPort", a music link
 > converter, works in the same space, and two apps with one name confuse people. Your installed Bridge
 > updates normally and keeps its sign-ins; only the name and the look changed. The package id
-> (`com.xlollx.songport.ytmbridge`), this repository's address and the release file names
-> (`SongportYtmBridge-vX.apk`) stay as they were, so existing installs and update tools keep working.
+> (`com.xlollx.songport.ytmbridge`) stays as it was, so existing installs keep updating. The
+> repository moved to `xlollx/Trackhop-Bridge` (the old address redirects), and from 1.5.0 the APK is
+> called `TrackhopBridge-vX.Y.Z.apk` (up to 1.4.1, `SongportYtmBridge-vX.Y.Z.apk`). Obtainium picks the
+> APK of each release by itself: nothing to change there.
 
 ## What it adds
 
@@ -72,7 +74,7 @@ before their first sign-in, since it now names them.
 
 ## Install
 
-1. Download the latest APK (`SongportYtmBridge-vX.Y.Z.apk`) from the
+1. Download the latest APK (`TrackhopBridge-vX.Y.Z.apk`) from the
    [Releases](https://github.com/xlollx/Trackhop-Bridge/releases) page, or add
    `https://github.com/xlollx/Trackhop-Bridge` to [Obtainium](https://github.com/ImranR98/Obtainium),
    which then keeps it updated.
@@ -210,7 +212,7 @@ where the Bridge reads it, so the check needs only the API's answer.
 
 Turn it off with **Check for updates** on the main screen; **Check now** checks once by hand. If you
 update with [Obtainium](https://github.com/ImranR98/Obtainium) or another tool, you can switch it off:
-the asset names stay `SongportYtmBridge-vX.Y.Z.apk`.
+each release carries one APK, `TrackhopBridge-vX.Y.Z.apk`.
 
 ## Building
 

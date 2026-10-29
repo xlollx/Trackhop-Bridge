@@ -78,7 +78,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: SongportYtmBridge-debug-apk
+          name: TrackhopBridge-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -101,7 +101,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: SongportYtmBridge-release-apk
+          name: TrackhopBridge-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
@@ -124,7 +124,7 @@ jobs:
 
       - name: Name release asset after the version
         if: ${{ steps.rel.outputs.tag != '' }}
-        run: cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/SongportYtmBridge-${{ steps.rel.outputs.tag }}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/TrackhopBridge-${{ steps.rel.outputs.tag }}.apk"
 
       - name: GitHub Release
         if: ${{ steps.rel.outputs.tag != '' }}
@@ -133,7 +133,7 @@ jobs:
           tag_name: ${{ steps.rel.outputs.tag }}
           target_commitish: ${{ github.sha }}
           files: |
-            SongportYtmBridge-*.apk
+            TrackhopBridge-*.apk
             bridge.json
           body_path: release-notes.md
           generate_release_notes: true
