@@ -15,3 +15,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "SongportYtmBridge"
 include ':app'
+// Trackhop's web connectors, copied unchanged by scripts/sync-from-trackhop.sh (see UPSTREAM).
+include ':bridge'
+// The YouTube Music web client without Android, used by :bridge.
+include ':ytm'

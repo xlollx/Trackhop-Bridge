@@ -1,0 +1,111 @@
+package com.xlollx.songport.ytmbridge
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.webkit.CookieManager
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+
+/**
+ * The Amazon Music session: cookies of the login completed in the WebView plus the regional domain
+ * the account lives on (music.amazon.it, music.amazon.de, ...). Encrypted with the Android Keystore,
+ * never handed to Trackhop.
+ */
+object AmazonSession {
+    @Volatile private var cached: SharedPreferences? = null
+
+    private fun prefs(ctx: Context): SharedPreferences = cached ?: synchronized(this) {
+        cached ?: open(ctx.applicationContext).also { cached = it }
+    }
+
+    private fun open(ctx: Context): SharedPreferences = try {
+        val key = MasterKey.Builder(ctx, "amazonbridge_master").setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        EncryptedSharedPreferences.create(
+            ctx, "amazon_session", key,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    } catch (e: Exception) {
+        ctx.getSharedPreferences("amazon_session_plain", Context.MODE_PRIVATE)
+    }
+
+    fun cookies(ctx: Context): String? = prefs(ctx).getString("cookies", null)
+    fun domain(ctx: Context): String? = prefs(ctx).getString("domain", null)
+    fun account(ctx: Context): String? = prefs(ctx).getString("account", null)
+    fun isConnected(ctx: Context): Boolean = cookies(ctx) != null && domain(ctx) != null
+
+    fun save(ctx: Context, cookies: String, domain: String, account: String?) {
+        prefs(ctx).edit().putString("cookies", cookies).putString("domain", domain).putString("account", account ?: account(ctx)).apply()
+    }
+
+    /** Display name of the customer, when the player's configuration revealed it. */
+    fun saveAccount(ctx: Context, account: String) {
+        prefs(ctx).edit().putString("account", account).apply()
+    }
+
+    /**
+     * The API headers of the player, captured while it was running, kept encrypted next to the
+     * session. They carry an access token, so they live here and are never handed to Trackhop.
+     */
+    fun saveHeaders(ctx: Context, headers: String, userAgent: String?, host: String?) {
+        prefs(ctx).edit()
+            .putString("headers", headers)
+            .putString("headers_ua", userAgent)
+            .putString("headers_host", host?.takeIf { AmazonClient.isMusicDomain(it) })
+            .putLong("headers_at", System.currentTimeMillis())
+            .apply()
+    }
+
+    fun headers(ctx: Context): String? = prefs(ctx).getString("headers", null)
+    fun headersUserAgent(ctx: Context): String? = prefs(ctx).getString("headers_ua", null)
+    /** The player page the headers were seen on: the account's real regional site. */
+    fun headersHost(ctx: Context): String? = prefs(ctx).getString("headers_host", null)
+    fun headersAt(ctx: Context): Long = prefs(ctx).getLong("headers_at", 0)
+
+    /** Forgets the session here and the Amazon cookies in the WebView. */
+    fun clear(ctx: Context) {
+        prefs(ctx).edit().clear().apply()
+        AmazonClient.forgetConfig()
+        AmazonBridge.forget()
+        val n = wipeCookies()
+        BridgeNet.log("amazon", "disconnected: session forgotten, $n Amazon cookies removed")
+    }
+
+    /**
+     * Removes every Amazon cookie from the WebView jar, and only those (the YouTube Music and
+     * Spotify sessions must survive). A cookie lives on a host or on a domain, so each name seen is
+     * expired in every form it can have: host-only on the player, its API host (gql.), the store and
+     * the bare domain, and set on the domain or the music subdomain. A copy left behind is sent next
+     * to the new one after signing in again, and Amazon then refuses both. Returns how many it saw.
+     */
+    fun wipeCookies(): Int = runCatching {
+        val cm = CookieManager.getInstance()
+        var seen = 0
+        val bases = (AmazonClient.DOMAINS.keys.map { it.removePrefix("music.") } + "amazon.com").distinct()
+        for (base in bases) {
+            val hosts = listOf("music.$base", "gql.music.$base", "www.$base", base)
+            val names = hosts.flatMap { h -> cm.getCookie("https://$h").orEmpty().split(';').map { it.substringBefore('=').trim() } }
+                .filter { it.isNotEmpty() }.distinct()
+            seen += names.size
+            for (h in hosts) for (name in names) {
+                cm.setCookie("https://$h", "$name=; Max-Age=0; Path=/")
+                cm.setCookie("https://$h", "$name=; Max-Age=0; Domain=.$base; Path=/")
+                cm.setCookie("https://$h", "$name=; Max-Age=0; Domain=.music.$base; Path=/")
+            }
+        }
+        cm.flush()
+        seen
+    }.getOrDefault(0)
+
+    /** Cookie names the jar would send twice to [url] (stale copies next to fresh ones), for diagnostics. */
+    fun duplicateCookies(url: String): List<String> = runCatching {
+        CookieManager.getInstance().getCookie(url).orEmpty().split(';').map { it.substringBefore('=').trim() }
+            .filter { it.isNotEmpty() }.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.sorted()
+    }.getOrDefault(emptyList())
+
+    /** True when the cookie jar holds an Amazon authentication token (at-main, at-acbit, sess-at-*, ...). */
+    fun looksSignedIn(cookies: String?): Boolean = cookies != null && cookies.split(';').any {
+        val c = it.trim()
+        (c.startsWith("at-") || c.startsWith("sess-at-")) && c.substringAfter('=', "").trim().length > 20
+    }
+}

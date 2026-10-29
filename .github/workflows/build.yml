@@ -1,6 +1,6 @@
 name: Build
 
-# Builds the Bridge on every push, pull request and by hand. When the versionName in
+# Builds and tests Trackhop Bridge on every push, pull request and by hand. When the versionName in
 # app/build.gradle has no matching tag yet, a push to main creates the tag and publishes the signed
 # release APK as a GitHub Release (the Bridge is distributed only here, never on Google Play).
 # Pushing a tag v* by hand publishes a release for that tag too.
@@ -55,6 +55,10 @@ jobs:
 
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
+
+      # The connectors' contract tests (local mock servers, no network) and the IPC contract.
+      - name: Unit tests
+        run: gradle testDebugUnitTest :ytm:test --no-daemon --stacktrace
 
       - name: Upload debug APK
         continue-on-error: true

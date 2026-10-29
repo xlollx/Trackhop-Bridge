@@ -1,0 +1,71 @@
+package com.xlollx.songport.ytmbridge
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.webkit.CookieManager
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+
+/**
+ * The YouTube Music session: the cookies of the login the user completed in the WebView, encrypted
+ * with the Android Keystore. They are as sensitive as the Google password: they never leave this
+ * device and are never handed to Trackhop, which only receives playlists and tracks.
+ */
+object Session {
+    const val ORIGIN = YtmAuth.ORIGIN
+
+    @Volatile private var cached: SharedPreferences? = null
+
+    private fun prefs(ctx: Context): SharedPreferences = cached ?: synchronized(this) {
+        cached ?: open(ctx.applicationContext).also { cached = it }
+    }
+
+    private fun open(ctx: Context): SharedPreferences = try {
+        val key = MasterKey.Builder(ctx, "ytmbridge_master").setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        EncryptedSharedPreferences.create(
+            ctx, "ytm_session", key,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    } catch (e: Exception) {
+        ctx.getSharedPreferences("ytm_session_plain", Context.MODE_PRIVATE)
+    }
+
+    fun cookies(ctx: Context): String? = prefs(ctx).getString("cookies", null)?.takeIf { sapisid(it) != null }
+    fun account(ctx: Context): String? = prefs(ctx).getString("account", null)
+    fun isConnected(ctx: Context): Boolean = cookies(ctx) != null
+
+    fun save(ctx: Context, cookies: String, account: String?) {
+        prefs(ctx).edit().putString("cookies", cookies).putString("account", account).apply()
+    }
+
+    /** Forgets the session here and in the WebView, so the next login can pick another account. */
+    fun clear(ctx: Context) {
+        YtmWeb.reset()
+        prefs(ctx).edit().clear().apply()
+        // Only Google's and YouTube's cookies: inside Trackhop the WebView also holds the other web
+        // sessions (Amazon, Spotify, Apple), which signing out of YouTube Music must not touch.
+        runCatching {
+            val cm = CookieManager.getInstance()
+            COOKIE_DOMAINS.forEach { d ->
+                val root = d.split('.').takeLast(2).joinToString(".")
+                cm.getCookie("https://$d")?.split(';')?.forEach { c ->
+                    val n = c.substringBefore('=').trim()
+                    if (n.isNotEmpty()) {
+                        cm.setCookie("https://$d", "$n=; Max-Age=0; Path=/; Secure")
+                        cm.setCookie("https://$d", "$n=; Max-Age=0; Domain=.$root; Path=/; Secure")
+                    }
+                }
+            }
+            cm.flush()
+        }
+    }
+
+    private val COOKIE_DOMAINS = listOf("music.youtube.com", "www.youtube.com", "youtube.com", "accounts.google.com", "www.google.com", "google.com")
+
+    /** The cookie that signs requests: SAPISID, or its __Secure-3PAPISID twin. */
+    fun sapisid(cookies: String): String? = YtmAuth.sapisid(cookies)
+
+    /** Authorization header in the form the web player itself sends: SAPISIDHASH ts_sha1("ts sapisid origin"). */
+    fun authorization(cookies: String): String = YtmAuth.authorization(cookies)
+}

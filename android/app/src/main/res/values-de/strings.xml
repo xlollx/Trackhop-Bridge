@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Songport Bridge</string>
-    <string name="login_title">Bei YouTube Music anmelden</string>
-    <string name="intro">Optionale Begleit-App für Songport. Sie verbindet Dienste ohne offene API (YouTube Music und, experimentell, Amazon Music) über dieselbe Web-Oberfläche, die auch ihre Player nutzen, sodass du keine Entwicklerschlüssel brauchst. Songport erhält nur deine Playlists und Titel; die Anmeldungen selbst bleiben in dieser App.</string>
-    <string name="ytm_title">YouTube Music</string>
-    <string name="amazon_title">Amazon Music (experimentell)</string>
+    <string name="intro">Optionale Begleit-App für Trackhop. Sie verbindet Dienste ohne offene API (YouTube Music und, experimentell, Amazon Music) über dieselbe Web-Oberfläche, die auch ihre Player nutzen, sodass du keine Entwicklerschlüssel brauchst. Trackhop erhält nur deine Playlists und Titel; die Anmeldungen selbst bleiben in dieser App.</string>
     <string name="amazon_intro">Auch Amazon Music hat keine offene API, und die offizielle ist zugelassenen Partnern vorbehalten. Dieser Connector nutzt die Oberfläche des Web-Players. Melde dich hier an: Amazon fragt eventuell zweimal, erst auf amazon.com und dann auf der Seite deines Landes; schließe beides ab und lass den Bildschirm offen, bis er sich von selbst schließt, sobald der Player gestartet ist. Führe dann den Verbindungstest aus.</string>
     <string name="amazon_connect">Bei Amazon anmelden</string>
     <string name="amazon_test">Verbindung testen</string>
@@ -12,38 +8,22 @@
     <string name="amazon_test_ok">Verbunden als %1$s. Die Testsuche lieferte %2$d Titel.</string>
     <string name="amazon_test_ok_noname">Verbunden. Die Testsuche lieferte %1$d Titel.</string>
     <string name="amazon_test_fail">Test fehlgeschlagen: %1$s</string>
-    <string name="amazon_capture">Traffic aufzeichnen</string>
-    <string name="amazon_capture_intro">Nutze Amazon Music hier ganz normal: Öffne Bibliothek → Playlists, öffne eine deiner Playlists, erstelle eine Playlist, füge ihr einen Titel hinzu, entferne ihn, suche nach einem Titel. Jeder Aufruf des Players wird ohne Cookies oder Tokens in eine Datei auf diesem Telefon geschrieben. Tippe danach auf Teilen und schicke die Datei an den Entwickler.</string>
-    <string name="amazon_capture_share">Teilen</string>
-    <string name="amazon_capture_clear">Leeren</string>
-    <string name="amazon_capture_count">%1$d Aufrufe aufgezeichnet</string>
-    <string name="disclaimer_title">Haftungsausschluss</string>
-    <string name="disclaimer_body">Songport Bridge ist ein unabhängiges Open-Source-Projekt. Es ist weder mit Google, YouTube, Amazon noch mit einem anderen Musikdienst verbunden, von ihnen unterstützt oder autorisiert.\n\nEs kommuniziert mit diesen Diensten über dieselben Schnittstellen wie deren eigene Web-Player, nicht über eine offizielle API. Das verstößt gegen deren Nutzungsbedingungen. Es kann jederzeit aufhören zu funktionieren, und der Dienst kann das Konto, mit dem du dich anmeldest, einschränken, sperren oder schließen.\n\nDie Software wird \"wie besehen\" ohne jegliche Gewährleistung bereitgestellt. Indem du fortfährst, akzeptierst du, sie vollständig auf eigenes Risiko zu nutzen, und dass der Entwickler keinerlei Verantwortung oder Haftung für Folgen übernimmt, einschließlich Einschränkungen deiner Konten oder Datenverlust.</string>
-    <string name="disclaimer_accept">Ich habe verstanden und akzeptiere</string>
     <string name="disclaimer_review">Haftungsausschluss lesen</string>
-    <string name="spotify_title">Spotify</string>
-    <string name="spotify_intro">Melde dich auf der Spotify-Seite an, statt eine Entwickler-App anzulegen. Dein Passwort gibst du nur auf dieser Seite ein: Diese App sieht und speichert es nie. Behalten wird nur die Sitzung (Cookies), verschlüsselt auf diesem Telefon; Songport erhält lediglich ein kurzlebiges Token.</string>
+    <string name="spotify_intro">Melde dich auf der Spotify-Seite an, statt eine Entwickler-App anzulegen. Dein Passwort gibst du nur auf dieser Seite ein: Diese App sieht und speichert es nie. Behalten wird nur die Sitzung (Cookies), verschlüsselt auf diesem Telefon; Trackhop erhält nur deine Playlists und Titel.</string>
     <string name="spotify_connect">Bei Spotify anmelden</string>
-    <string name="apple_title">Apple Music</string>
-    <string name="apple_intro">Melde dich mit deiner Apple-ID auf music.apple.com an, statt für das Apple Developer Program zu zahlen. Dein Passwort gibst du nur auf Apples Seite ein: Diese App sieht und speichert es nie. Behalten wird nur die Sitzung (Cookies), verschlüsselt auf diesem Telefon; Songport erhält lediglich die Tokens des Web-Players.</string>
+    <string name="apple_intro">Melde dich mit deiner Apple-ID auf music.apple.com an, statt für das Apple Developer Program zu zahlen. Dein Passwort gibst du nur auf Apples Seite ein: Diese App sieht und speichert es nie. Behalten wird nur die Sitzung (Cookies), verschlüsselt auf diesem Telefon; Trackhop erhält lediglich die Tokens des Web-Players.</string>
     <string name="apple_connect">Bei Apple Music anmelden</string>
-    <string name="login_hint">Melde dich auf der Seite des Dienstes an. Dieser Bildschirm schließt sich von selbst; wenn nicht, tippe auf Fertig.</string>
-    <string name="login_finishing">Fast fertig: Der Player startet, lass diesen Bildschirm offen, bis er sich von selbst schließt. Fragt der Player, wer zuhört, wähle dein Profil.</string>
-    <string name="login_done">Fertig</string>
-    <string name="login_not_signed_in">Noch keine Sitzung: Schließe zuerst die Anmeldung auf dieser Seite ab.</string>
     <string name="language">Sprache</string>
-    <string name="language_system">Systemsprache</string>
     <string name="warning_title">Bitte zuerst lesen</string>
-    <string name="warning_body">Dies ist keine offizielle Google-API. Ihre Nutzung verstößt gegen die YouTube-Nutzungsbedingungen, sie kann jederzeit aufhören zu funktionieren, wenn Google etwas ändert, und im schlimmsten Fall könnte Google das Konto einschränken, mit dem du dich anmeldest. Nutze sie auf eigenes Risiko, am besten mit einem Konto, dessen Verlust du verkraften kannst. Der offizielle Weg (dein eigener Google Cloud-Schlüssel) bleibt in Songport verfügbar.</string>
-    <string name="verify_google">Was Google sagt</string>
-    <string name="verify_hint">Google hat die Netzadresse dieses Telefons wegen ungewöhnlichen Verkehrs gesperrt. Die Sperre endet von selbst einige Minuten nachdem die Anfragen aufhören: die Bridge setzt alle Aufrufe an YouTube Music aus und sagt Songport, wie lange zu warten ist. Bietet Googles Seite eine Überprüfung an, hebt sie hier die Sperre sofort auf.</string>
+    <string name="warning_body">Dies ist keine offizielle Google-API. Ihre Nutzung verstößt gegen die YouTube-Nutzungsbedingungen, sie kann jederzeit aufhören zu funktionieren, wenn Google etwas ändert, und im schlimmsten Fall könnte Google das Konto einschränken, mit dem du dich anmeldest. Nutze sie auf eigenes Risiko, am besten mit einem Konto, dessen Verlust du verkraften kannst. Der offizielle Weg (dein eigener Google Cloud-Schlüssel) bleibt in Trackhop verfügbar.</string>
+    <string name="verify_hint">Google hat die Netzadresse dieses Telefons wegen ungewöhnlichen Verkehrs gesperrt. Die Sperre endet von selbst einige Minuten nachdem die Anfragen aufhören: die Bridge setzt alle Aufrufe an YouTube Music aus und sagt Trackhop, wie lange zu warten ist. Bietet Googles Seite eine Überprüfung an, hebt sie hier die Sperre sofort auf.</string>
     <string name="status_connected">Verbunden als %1$s</string>
     <string name="status_connected_plain">Verbunden</string>
     <string name="status_disconnected">Nicht verbunden</string>
-    <string name="privacy_note">Deine Sitzung wird nur auf diesem Handy verschlüsselt gespeichert. Sie wird nie an Songport, dessen Entwickler oder sonst jemanden gesendet.</string>
+    <string name="privacy_note">Deine Sitzung wird nur auf diesem Handy verschlüsselt gespeichert. Sie wird nie an Trackhop, dessen Entwickler oder sonst jemanden gesendet.</string>
     <string name="connect">Mit Google anmelden</string>
     <string name="disconnect">Abmelden</string>
-    <string name="open_songport">Songport öffnen</string>
+    <string name="open_trackhop">Trackhop öffnen</string>
     <string name="source_code">Quellcode und Lizenz</string>
     <string name="version">Version %1$s</string>
 </resources>

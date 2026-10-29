@@ -7,7 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,8 +27,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -38,29 +35,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlin.concurrent.thread
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.xlollx.songport.ytmbridge.app.BuildConfig
+import com.xlollx.songport.ytmbridge.app.R
+import com.xlollx.songport.ytmbridge.ui.BridgeTheme
+import com.xlollx.songport.ytmbridge.ui.HeroHeader
+import com.xlollx.songport.ytmbridge.R as BridgeR
 
-/** Status screen: what this app is, the warning, connect / disconnect, back to Songport. */
+/** Status screen: what this app is, the warning, connect / disconnect, back to Trackhop. */
 class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: android.content.Context) { super.attachBaseContext(AppLocale.wrap(newBase)) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val dark = isSystemInDarkTheme()
-            MaterialTheme(
-                colorScheme = if (dark) darkColorScheme(primary = Color(0xFFFFB3AE)) else lightColorScheme(primary = Color(0xFFB3261E)),
-            ) {
+            BridgeTheme {
                 Surface(Modifier.fillMaxSize()) { Screen() }
             }
         }
     }
 }
+
+/** The languages offered, as in Trackhop; "" is the system language. */
+private val LANGUAGES = listOf("", "en", "it", "fr", "de", "es", "pt-BR", "pl", "ru", "tr", "zh", "ja", "ko")
 
 @Composable
 private fun Screen() {
@@ -76,7 +76,7 @@ private fun Screen() {
         Modifier.fillMaxSize().safeDrawingPadding().padding(20.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        HeroHeader(stringResource(R.string.app_name), stringResource(R.string.version, BuildConfig.VERSION_NAME))
         Text(stringResource(R.string.intro), style = MaterialTheme.typography.bodyLarge)
 
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
@@ -88,9 +88,9 @@ private fun Screen() {
         }
         if (showDisclaimer) AlertDialog(
             onDismissRequest = { showDisclaimer = false },
-            title = { Text(stringResource(R.string.disclaimer_title)) },
-            text = { Text(stringResource(R.string.disclaimer_body), modifier = Modifier.verticalScroll(rememberScrollState())) },
-            confirmButton = { TextButton(onClick = { Disclaimer.accept(ctx); showDisclaimer = false }) { Text(stringResource(R.string.disclaimer_accept)) } },
+            title = { Text(stringResource(BridgeR.string.bridge_disclaimer_title)) },
+            text = { Text(stringResource(BridgeR.string.bridge_disclaimer_body), modifier = Modifier.verticalScroll(rememberScrollState())) },
+            confirmButton = { TextButton(onClick = { Disclaimer.accept(ctx); showDisclaimer = false }) { Text(stringResource(BridgeR.string.bridge_disclaimer_accept)) } },
         )
 
         Card {
@@ -111,7 +111,7 @@ private fun Screen() {
                 // Google's abuse page seen recently: only the user can pass its captcha.
                 if (remember(version) { YtmClient.Verification.pending(ctx) }) {
                     Text(stringResource(R.string.verify_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    Button(onClick = { login.launch(Intent(ctx, VerifyActivity::class.java)) }) { Text(stringResource(R.string.verify_google)) }
+                    Button(onClick = { login.launch(Intent(ctx, VerifyActivity::class.java)) }) { Text(stringResource(BridgeR.string.bridge_verify_google)) }
                 }
             }
         }
@@ -132,12 +132,13 @@ private fun Screen() {
         Spacer(Modifier.height(4.dp))
         Button(
             onClick = {
+                // Trackhop keeps the package id it had as Songport.
                 val open = ctx.packageManager.getLaunchIntentForPackage("com.xlollx.songport")
                 if (open != null) ctx.startActivity(open)
-                else ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/xlollx/Songport")))
+                else ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/xlollx/Trackhop")))
             },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(stringResource(R.string.open_songport)) }
+        ) { Text(stringResource(R.string.open_trackhop)) }
         TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/xlollx/Songport-YTM-Bridge"))) }) {
             Text(stringResource(R.string.source_code))
         }
@@ -150,7 +151,7 @@ private fun Screen() {
             title = { Text(stringResource(R.string.language)) },
             text = {
                 Column {
-                    AppLocale.CHOICES.forEach { tag ->
+                    LANGUAGES.forEach { tag ->
                         TextButton(onClick = { langOpen = false; (ctx as? android.app.Activity)?.let { AppLocale.set(it, tag) } }, modifier = Modifier.fillMaxWidth()) {
                             Text(AppLocale.label(ctx, tag))
                         }
@@ -159,7 +160,6 @@ private fun Screen() {
             },
             confirmButton = {},
         )
-        Text(stringResource(R.string.version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -201,7 +201,7 @@ private fun AmazonCard(version: Int, onChanged: () -> Unit) {
 
     Card {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(stringResource(R.string.amazon_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(BridgeR.string.bridge_amazon_title), style = MaterialTheme.typography.titleLarge)
             Text(stringResource(R.string.amazon_intro), style = MaterialTheme.typography.bodyMedium)
             Text(
                 when { !connected -> stringResource(R.string.status_disconnected); account != null -> stringResource(R.string.status_connected, account); else -> stringResource(R.string.status_connected_plain) },
@@ -216,7 +216,7 @@ private fun AmazonCard(version: Int, onChanged: () -> Unit) {
                         val app = ctx.applicationContext
                         thread {
                             val text = try {
-                                // Un test parte sempre da zero: niente credenziali ne' configurazione in cache.
+                                // A test always starts afresh: no cached credentials or configuration.
                                 AmazonBridge.forget()
                                 AmazonClient.forgetConfig()
                                 val client = AmazonClient(app)
@@ -237,7 +237,7 @@ private fun AmazonCard(version: Int, onChanged: () -> Unit) {
             }
             testResult?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             if (connected) {
-                TextButton(onClick = { ctx.startActivity(Intent(ctx, AmazonCaptureActivity::class.java)) }) { Text(stringResource(R.string.amazon_capture)) }
+                TextButton(onClick = { ctx.startActivity(Intent(ctx, AmazonCaptureActivity::class.java)) }) { Text(stringResource(BridgeR.string.bridge_amazon_capture)) }
             }
         }
     }

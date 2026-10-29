@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="intro">Trackhop için isteğe bağlı yardımcı uygulama. Açık API\'si olmayan hizmetleri (YouTube Music ve deneysel olarak Amazon Music) kendi oynatıcılarının kullandığı web arayüzü üzerinden bağlar; böylece geliştirici anahtarına ihtiyacın olmaz. Trackhop yalnızca çalma listelerini ve parçalarını alır; oturum açma bilgileri bu uygulamada kalır.</string>
+    <string name="amazon_intro">Amazon Music\'in de açık bir API\'si yok; resmi API yalnızca onaylı iş ortaklarına açık. Bu bağlayıcı web oynatıcısının arayüzünü kullanır. Buradan oturum aç: Amazon iki kez sorabilir, önce amazon.com\'da, sonra ülkenin sitesinde; ikisini de tamamla ve ekran kendiliğinden kapanana kadar açık bırak, bu da oynatıcı başlar başlamaz olur. Ardından bağlantı testini çalıştır.</string>
+    <string name="amazon_connect">Amazon\'da oturum aç</string>
+    <string name="amazon_test">Bağlantıyı test et</string>
+    <string name="amazon_test_running">Test ediliyor…</string>
+    <string name="amazon_test_ok">%1$s olarak bağlı. Test araması %2$d parça döndürdü.</string>
+    <string name="amazon_test_ok_noname">Bağlı. Test araması %1$d parça döndürdü.</string>
+    <string name="amazon_test_fail">Test başarısız: %1$s</string>
+    <string name="disclaimer_review">Sorumluluk reddini oku</string>
+    <string name="spotify_intro">Geliştirici uygulaması oluşturmak yerine Spotify\'ın kendi sayfasında oturum aç. Şifreni yalnızca o sayfaya yazarsın: bu uygulama onu asla görmez ve saklamaz. Saklanan yalnızca oturumdur (çerezler), bu telefonda şifreli olarak; Trackhop yalnızca çalma listelerini ve parçalarını alır.</string>
+    <string name="spotify_connect">Spotify\'da oturum aç</string>
+    <string name="apple_intro">Apple Developer Program\'a ödeme yapmak yerine music.apple.com\'da Apple Kimliğinle oturum aç. Şifreni yalnızca Apple\'ın sayfasına yazarsın: bu uygulama onu asla görmez ve saklamaz. Saklanan yalnızca oturumdur (çerezler), bu telefonda şifreli olarak; Trackhop yalnızca web oynatıcısının token\'larını alır.</string>
+    <string name="apple_connect">Apple Music\'te oturum aç</string>
+    <string name="language">Dil</string>
+    <string name="warning_title">Önce bunu oku</string>
+    <string name="warning_body">Bu resmi bir Google API\'si değildir. Kullanmak YouTube Hizmet Şartları\'na aykırıdır, Google bir şeyi değiştirdiğinde çalışmayı bırakabilir ve en kötü durumda Google oturum açtığın hesabı kısıtlayabilir. Riski sana ait olmak üzere kullan; tercihen kaybetmeyi göze alabileceğin bir hesapla. Resmi yol (kendi Google Cloud anahtarın) Trackhop\'ta kullanılabilir olmaya devam ediyor.</string>
+    <string name="verify_hint">Google bu ağ adresini olağan dışı trafik nedeniyle engelledi. Engel, istekler durduktan birkaç dakika sonra kendiliğinden kalkar: Bridge tüm YouTube Music çağrılarını duraklatır ve Trackhop\'a ne kadar bekleyeceğini söyler. Google\'ın sayfası bir doğrulama sunuyorsa, burada tamamlamak engeli hemen kaldırır.</string>
+    <string name="status_connected">%1$s olarak bağlı</string>
+    <string name="status_connected_plain">Bağlı</string>
+    <string name="status_disconnected">Bağlı değil</string>
+    <string name="privacy_note">Oturumun yalnızca bu telefonda şifreli olarak saklanır. Asla Trackhop\'a, geliştiricisine veya başka birine gönderilmez.</string>
+    <string name="connect">Google ile oturum aç</string>
+    <string name="disconnect">Oturumu kapat</string>
+    <string name="open_trackhop">Trackhop\'u aç</string>
+    <string name="source_code">Kaynak kodu ve lisans</string>
+    <string name="version">Sürüm %1$s</string>
+</resources>

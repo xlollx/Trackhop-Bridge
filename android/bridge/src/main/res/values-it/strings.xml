@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Texts of the built-in web connectors. The bridge_ prefix keeps them apart from Trackhop's own. -->
+<resources>
+    <string name="bridge_amazon_capture_intro">Usa Amazon Music normalmente qui: apri Libreria → Playlist, apri una tua playlist, crea una playlist, aggiungici un brano, rimuovilo, cerca un brano; dal menu della playlist (i tre puntini accanto a Riproduci) rinominala ed eliminala. Ogni chiamata del player viene scritta in un file su questo telefono, senza cookie né token. Poi tocca Condividi e invia il file allo sviluppatore.</string>
+    <string name="bridge_amazon_capture_share">Condividi</string>
+    <string name="bridge_amazon_capture_clear">Svuota</string>
+    <string name="bridge_amazon_capture_count">%1$d chiamate catturate</string>
+    <string name="bridge_disclaimer_title">Esclusione di responsabilità</string>
+    <string name="bridge_disclaimer_body">I connettori web di Trackhop (YouTube Music, Amazon Music e l\'accesso web a Spotify e Apple Music) fanno parte di un progetto indipendente e open source, non affiliato, approvato o collegato a Google, YouTube, Amazon, Spotify, Apple o ad alcun servizio musicale.\n\nComunicano con questi servizi attraverso le stesse interfacce usate dai loro player web, non tramite un\'API ufficiale. Questo è contrario ai loro termini di servizio. Possono smettere di funzionare in qualsiasi momento e il servizio può limitare, sospendere o chiudere l\'account con cui accedi.\n\nIl software è fornito \"così com\'è\", senza garanzie di alcun tipo. Continuando accetti di usarlo interamente a tuo rischio e che lo sviluppatore non assume alcuna responsabilità per qualsiasi conseguenza, comprese limitazioni ai tuoi account o perdita di dati.</string>
+    <string name="bridge_disclaimer_accept">Ho capito e accetto</string>
+    <string name="bridge_login_hint">Accedi nella pagina del servizio. Questa schermata si chiude da sola; se non lo fa, tocca Fatto.</string>
+    <string name="bridge_login_finishing">Quasi fatto: il player si sta avviando, lascia aperta questa schermata finché non si chiude da sola. Se il player chiede chi sta ascoltando, scegli il tuo profilo.</string>
+    <string name="bridge_login_done">Fatto</string>
+    <string name="bridge_login_not_signed_in">Nessuna sessione: completa prima l\'accesso in questa pagina.</string>
+    <string name="bridge_language_system">Lingua di sistema</string>
+    <string name="bridge_verify_hint">Google ha bloccato l\'indirizzo di rete di questo telefono per traffico insolito. Il blocco scade da solo qualche minuto dopo che le richieste si fermano: Trackhop sospende tutte le chiamate a YouTube Music per il tempo indicato da Google. Se la pagina di Google offre una verifica, completarla qui toglie il blocco subito.</string>
+    <string name="bridge_login_title">Accedi a YouTube Music</string>
+    <string name="bridge_amazon_title">Amazon Music (sperimentale)</string>
+    <string name="bridge_amazon_capture">Cattura traffico</string>
+    <string name="bridge_verify_google">Cosa dice Google</string>
+</resources>

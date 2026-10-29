@@ -1,0 +1,689 @@
+package com.xlollx.songport.ytmbridge
+
+import android.content.Context
+import android.util.Base64
+import com.xlollx.songport.ytmbridge.BridgeNet.withHook
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
+
+/**
+ * Spotify through the web player's own backend, the way open.spotify.com itself talks to Spotify.
+ *
+ * Since December 2025 a first-party token (the web player's, the desktop app's) is refused by the
+ * public Web API with a 429 on every call, so the web route cannot go through api.spotify.com any
+ * more. The player never did: it reads through the GraphQL gateway `api-partner.spotify.com/pathfinder`
+ * (persisted queries only: an operation name, its variables and a SHA-256 naming a query Spotify
+ * holds) and writes playlists through `spclient.wg.spotify.com/playlist/v2`. Both want two tokens:
+ * the bearer that names the user ([SpotifyBridge.token]) and a `client-token` that names the
+ * application, granted by clienttoken.spotify.com to the player's client id and version.
+ *
+ * The persisted-query hashes rot with every player release. They are harvested from the player's
+ * own JavaScript bundles (`"name","query","<sha256>"` literals), cached, and harvested again when
+ * Spotify answers PersistedQueryNotFound or the bundle changes; the hidden WebView that captures
+ * the bearer also reports the hashes and client token it sees the player use.
+ *
+ * Nothing here is an official interface: it is what the browser does, done from the phone.
+ */
+class SpotifyWebClient(private val ctx: Context) {
+
+    class Page(val html: String) {
+        private val sessionJson: JsonObject? = SESSION_SCRIPT.find(html)?.groupValues?.get(1)?.let { runCatching { parseJson(it) as? JsonObject }.getOrNull() }
+        private val serverConfig: JsonObject? = SERVER_CONFIG.find(html)?.groupValues?.get(1)?.let {
+            runCatching { parseJson(String(Base64.decode(it.trim(), Base64.DEFAULT))) as? JsonObject }.getOrNull()
+        }
+        val accessToken: String? get() = sessionJson["accessToken"].str
+        val isAnonymous: Boolean get() = sessionJson["isAnonymous"]?.toString() == "true"
+        val expiresAt: Long get() = sessionJson["accessTokenExpirationTimestampMs"].long ?: (System.currentTimeMillis() + 50 * 60_000)
+        /** The web player's client id: in the session block, or anywhere in the page, or the one it has had for years. */
+        val clientId: String get() = sessionJson["clientId"].str
+            ?: serverConfig["clientId"].str
+            ?: Regex(""""clientId"\s*:\s*"([0-9a-f]{32})"""").find(html)?.groupValues?.get(1)
+            ?: WEB_PLAYER_CLIENT_ID
+        val clientVersion: String? get() = serverConfig["clientVersion"].str
+            ?: Regex("""\b1\.\d+\.\d+\.\d+\.g[0-9a-f]{6,}\b""").find(html)?.value
+        /** The main bundle of the player: it lists the other chunks. */
+        val jsPack: String? get() = Regex("""https://open\.spotifycdn\.com/cdn/build/web-player/web-player\.[^"']+\.js""").find(html)?.value
+    }
+
+    private val http = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).withHook().build()
+    private val session get() = SpotifyBridge.session
+
+    private fun cookies(): String = session.cookies(ctx) ?: throw BridgeException("not connected")
+
+    // ---- the player page: bearer, client id and version, bundle
+
+    /** The player page for this session, parsed. Cached for a few minutes: the bearer inside lasts an hour. */
+    fun page(): Page {
+        cachedPage?.let { (at, p) -> if (System.currentTimeMillis() - at < 5 * 60_000) return p }
+        val req = Request.Builder().url("https://open.spotify.com/")
+            .header("User-Agent", BridgeUa.desktop(ctx)).header("Cookie", cookies())
+            .header("Accept", "text/html,application/xhtml+xml").header("Accept-Language", "en").build()
+        val html = http.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) throw BridgeException("open.spotify.com answered ${r.code}")
+            r.body?.string() ?: ""
+        }
+        val p = Page(html)
+        cachedPage = System.currentTimeMillis() to p
+        return p
+    }
+
+    // ---- client token: names the application; two weeks, granted to the player's id and version
+
+    /** Null when Spotify would not grant one: the call goes without, and the answer says whether it was needed. */
+    private fun clientToken(): String? {
+        session.get(ctx, "clientToken")?.let { t ->
+            val exp = session.get(ctx, "clientTokenExp")?.toLongOrNull() ?: 0
+            if (exp > System.currentTimeMillis()) return t
+        }
+        if (System.currentTimeMillis() - clientTokenFailedAt < 60_000) return null
+        return try { grantClientToken() } catch (e: Exception) { clientTokenFailedAt = System.currentTimeMillis(); lastClientTokenError = e.message; null }
+    }
+
+    private fun grantClientToken(): String {
+        val p = page()
+        val clientId = p.clientId
+        val version = p.clientVersion ?: session.get(ctx, "appVersion") ?: DEFAULT_APP_VERSION
+        val deviceId = WebSession.cookieValue(cookies(), "sp_t") ?: session.get(ctx, "deviceId") ?: java.util.UUID.randomUUID().toString().replace("-", "").also { session.put(ctx, "deviceId", it) }
+        val body = jsonObj(
+            "client_data" to jsonObj(
+                "client_version" to version,
+                "client_id" to clientId,
+                "js_sdk_data" to jsonObj(
+                    "device_brand" to "unknown", "device_model" to "unknown", "os" to "windows", "os_version" to "NT 10.0",
+                    "device_id" to deviceId, "device_type" to "computer",
+                ),
+            ),
+        )
+        val req = Request.Builder().url("https://clienttoken.spotify.com/v1/clienttoken")
+            .post(body.toString().toRequestBody(JSON))
+            .header("Accept", "application/json").header("Content-Type", "application/json")
+            .header("User-Agent", BridgeUa.desktop(ctx)).header("Origin", "https://open.spotify.com").header("Referer", "https://open.spotify.com/").build()
+        val j = http.newCall(req).execute().use { r -> parseJson(r.body?.string() ?: "") }
+        val token = j["granted_token"]["token"].str
+            ?: throw BridgeException("Spotify did not grant a client token (${j["response_type"].str ?: "no answer"})")
+        val ttl = (j["granted_token"]["refresh_after_seconds"].long ?: j["granted_token"]["expires_after_seconds"].long ?: 1_209_600L) * 1000
+        rememberClientToken(token, System.currentTimeMillis() + ttl - 60_000)
+        session.put(ctx, "appVersion", version)
+        return token
+    }
+
+    /** A client token seen on the player's own requests (from the WebView hooks) is as good as a granted one. */
+    fun rememberClientToken(token: String, expiresAt: Long) {
+        session.put(ctx, "clientToken", token)
+        session.put(ctx, "clientTokenExp", expiresAt.toString())
+    }
+
+    private fun appVersion(): String = page().clientVersion ?: session.get(ctx, "appVersion") ?: DEFAULT_APP_VERSION
+
+    // ---- persisted query hashes, harvested from the player's bundles
+
+    private val NEEDED = listOf(
+        "libraryV3", "fetchPlaylist", "fetchLibraryTracks", "searchTracks", "searchDesktop", "getTrack", "profileAttributes",
+        "addToPlaylist", "removeFromPlaylist", "addToLibrary", "removeFromLibrary",
+    )
+
+    /**
+     * A public registry that re-reads the player's bundle every four hours and keeps the hashes of
+     * the main queries, verified (spotify-gql-registry on GitHub). Read at most every six hours; its
+     * entries win over what this client read from the bundle itself, since a bundle can carry more
+     * than one literal for a name and the registry's are the ones the player uses today.
+     */
+    private fun registry(): Map<String, String> {
+        val at = session.get(ctx, "registryAt")?.toLongOrNull() ?: 0
+        val cached = session.get(ctx, "registry")?.let { runCatching { parseJson(it) as? JsonObject }.getOrNull() }
+        if (cached != null && System.currentTimeMillis() - at < 6 * 3600_000) return cached.entries.associate { (k, v) -> k to (v.str ?: "") }
+        val text = runCatching {
+            http.newCall(Request.Builder().url(REGISTRY_URL).header("User-Agent", BridgeUa.desktop(ctx)).build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
+        }.getOrNull() ?: return cached?.entries?.associate { (k, v) -> k to (v.str ?: "") } ?: emptyMap()
+        val ops = runCatching { parseJson(text)["operations"] as? JsonObject }.getOrNull() ?: return emptyMap()
+        val out = ops.entries.mapNotNull { (name, v) -> v["hash"].str?.takeIf { it.length == 64 }?.let { name to it } }.toMap()
+        session.put(ctx, "registry", JsonObject(out.mapValues { JsonPrimitive(it.value) }).toString())
+        session.put(ctx, "registryAt", System.currentTimeMillis().toString())
+        return out
+    }
+
+    private fun hashes(): MutableMap<String, String> {
+        val raw = session.get(ctx, "hashes") ?: return HashMap()
+        val j = runCatching { parseJson(raw) as? JsonObject }.getOrNull() ?: return HashMap()
+        return j.entries.associate { (k, v) -> k to (v.str ?: "") }.filterValues { it.length == 64 }.toMutableMap()
+    }
+
+    private fun saveHashes(map: Map<String, String>, pack: String?) {
+        session.put(ctx, "hashes", JsonObject(map.mapValues { JsonPrimitive(it.value) }).toString())
+        session.put(ctx, "hashesPack", pack)
+        session.put(ctx, "hashesAt", System.currentTimeMillis().toString())
+    }
+
+    /** A hash the WebView saw the player use: kept, and preferred to whatever the bundle said. */
+    fun rememberHash(operation: String, hash: String) {
+        if (hash.length != 64) return
+        val map = hashes()
+        if (map[operation] == hash) return
+        map[operation] = hash
+        saveHashes(map, session.get(ctx, "hashesPack"))
+    }
+
+    private fun hashFor(operation: String, forceHarvest: Boolean = false): String {
+        val map = hashes()
+        // The registry answers for the main queries without touching the bundle at all.
+        val known = registry()
+        if (!forceHarvest && known[operation] != null) {
+            if (map[operation] != known[operation]) { map[operation] = known[operation]!!; saveHashes(map, session.get(ctx, "hashesPack")) }
+            return known[operation]!!
+        }
+        // One harvest per half hour at most: a missing operation is not found by asking again.
+        val recently = (session.get(ctx, "hashesAt")?.toLongOrNull() ?: 0) > System.currentTimeMillis() - 30 * 60_000
+        if (forceHarvest || (map[operation] == null && !recently)) harvest(map, runCatching { page().jsPack }.getOrNull(), operation)
+        return map[operation] ?: throw BridgeException("Spotify: no query hash for $operation (the player's code changed; try again in a while)")
+    }
+
+    /**
+     * Downloads the player's main bundle and, chunk by chunk, the others it lists, until every
+     * operation this client needs has a hash. Chunk names and hashes are two `{id:"..."}` maps in
+     * the main bundle: joined by id they give `<name>.<hash>.js` under the same CDN folder.
+     */
+    private fun harvest(map: MutableMap<String, String>, packUrl: String?, wanted: String) {
+        // Bundle literals fill what the registry does not cover (the mutations); the first literal
+        // for a name is kept, as the registry's own reader does.
+        val known = registry()
+        fun scan(text: String) { HASH.findAll(text).forEach { m -> if (m.groupValues[1] !in known) map.putIfAbsent(m.groupValues[1], m.groupValues[3]) } }
+        map.putAll(known)
+        val pack = packUrl ?: run { if (wanted in map) { saveHashes(map, null); return }; throw BridgeException("Spotify: the player page has no bundle to read the queries from") }
+        fun fetch(url: String): String = http.newCall(Request.Builder().url(url).header("User-Agent", BridgeUa.desktop(ctx)).build())
+            .execute().use { r -> if (r.isSuccessful) r.body?.string() ?: "" else "" }
+        val main = fetch(pack)
+        scan(main)
+        // Only what was asked for: the whole set would mean tens of megabytes on first use.
+        if (wanted in map) { saveHashes(map, pack); return }
+        val maps = CHUNK_MAP.findAll(main).map { m ->
+            PAIR.findAll(m.value).associate { it.groupValues[1].toInt() to it.groupValues[2] }
+        }.filter { it.size > 3 }.toList()
+        val hex = Regex("[0-9a-f]{8,}")
+        val hashMaps = maps.filter { it.values.all { v -> v.matches(hex) } }
+        val nameMaps = maps.filter { it !in hashMaps }
+        val chunks = ArrayList<String>()
+        for (h in hashMaps) for (n in nameMaps) {
+            val common = h.keys intersect n.keys
+            if (common.size < 3) continue
+            common.sorted().forEach { id -> chunks += "https://open.spotifycdn.com/cdn/build/web-player/${n[id]}.${h[id]}.js" }
+        }
+        // The chunks that hold the queries are the routes and the player's core: try likely names first.
+        val ordered = chunks.distinct().sortedBy { u -> if (Regex("xpui|routes|playlist|library|search|collection").containsMatchIn(u)) 0 else 1 }
+        var bytes = 0L
+        for (u in ordered) {
+            if (wanted in map || bytes > 60_000_000L) break
+            val t = fetch(u)
+            bytes += t.length
+            scan(t)
+        }
+        saveHashes(map, pack)
+    }
+
+    // ---- GraphQL
+
+    private fun headers(b: Request.Builder): Request.Builder {
+        val bearer = SpotifyBridge.token(ctx).value
+        val ct = clientToken()
+        return b.header("Authorization", "Bearer $bearer")
+            .apply { if (ct != null) header("client-token", ct) }
+            .header("spotify-app-version", appVersion())
+            .header("app-platform", "WebPlayer")
+            .header("Accept", "application/json").header("Accept-Language", "en")
+            .header("Origin", "https://open.spotify.com").header("Referer", "https://open.spotify.com/")
+            .header("User-Agent", BridgeUa.desktop(ctx))
+    }
+
+    /** One persisted query. GraphQL errors and a refused write (HTTP 200, a failure typename) both throw. */
+    fun gql(operation: String, variables: JsonObject, retry: Boolean = true): JsonElement {
+        val body = jsonObj(
+            "variables" to variables,
+            "operationName" to operation,
+            "extensions" to jsonObj("persistedQuery" to jsonObj("version" to 1, "sha256Hash" to hashFor(operation))),
+        )
+        val req = headers(Request.Builder().url(PATHFINDER).post(body.toString().toRequestBody(JSON))).header("Content-Type", "application/json").build()
+        val (code, text, wait) = send(req)
+        val j = runCatching { parseJson(text) }.getOrNull() ?: JsonNull
+        val errors = j["errors"].arr.mapNotNull { it["message"].str }
+        if (code == 401 && retry) { SpotifyBridge.invalidateToken(); return gql(operation, variables, retry = false) }
+        if (errors.any { it.contains("PersistedQueryNotFound", true) } && retry) {
+            hashFor(operation, forceHarvest = true)
+            return gql(operation, variables, retry = false)
+        }
+        if (code == 429) throw BridgeException("Spotify asks to slow down (429, retry in $wait s)")
+        if (code !in 200..299 && errors.isEmpty()) throw BridgeException("Spotify $operation: HTTP $code ${text.take(200)}" + (lastClientTokenError?.let { " (no client token: $it)" } ?: ""))
+        if (errors.isNotEmpty()) throw BridgeException("Spotify $operation: ${errors.joinToString("; ").take(300)}")
+        val typename = j["data"].let { d -> (d as? JsonObject)?.values?.firstOrNull()?.get("__typename").str }
+        if (typename != null && (typename.endsWith("Error") || typename.contains("Failure") || typename.contains("NotFound"))) {
+            throw BridgeException("Spotify $operation: $typename")
+        }
+        return j
+    }
+
+    private data class Resp(val code: Int, val text: String, val retryAfter: Int)
+
+    private fun send(req: Request): Resp = http.newCall(req).execute().use { r ->
+        Resp(r.code, r.body?.string() ?: "", r.header("Retry-After")?.trim()?.toIntOrNull()?.coerceIn(5, 3600) ?: 60)
+    }
+
+    // ---- spclient: the playlist store the player writes to
+
+    private fun spclient(path: String, body: JsonObject, retry: Boolean = true): JsonElement {
+        val req = headers(Request.Builder().url("$SPCLIENT$path").post(body.toString().toRequestBody(JSON))).header("Content-Type", "application/json").build()
+        val (code, text, wait) = send(req)
+        if (code == 401 && retry) { SpotifyBridge.invalidateToken(); return spclient(path, body, retry = false) }
+        if (code == 429) throw BridgeException("Spotify asks to slow down (429, retry in $wait s)")
+        if (code !in 200..299) throw BridgeException("Spotify playlist store: HTTP $code on ${path.substringBefore('?')}" + text.take(200).let { if (it.isBlank()) " (no reason given)" else " $it" })
+        return runCatching { parseJson(text) }.getOrNull() ?: JsonNull
+    }
+
+    private fun spclientGet(path: String, retry: Boolean = true): JsonElement {
+        val req = headers(Request.Builder().url("$SPCLIENT$path").get()).header("Accept", "application/json").build()
+        val (code, text, wait) = send(req)
+        if (code == 401 && retry) { SpotifyBridge.invalidateToken(); return spclientGet(path, retry = false) }
+        if (code == 429) throw BridgeException("Spotify asks to slow down (429, retry in $wait s)")
+        if (code !in 200..299) throw BridgeException("Spotify playlist store: HTTP $code on ${path.substringBefore('?')} ${text.take(200)}")
+        return runCatching { parseJson(text) }.getOrNull() ?: JsonNull
+    }
+
+    private fun deltas(vararg ops: JsonObject): JsonObject = jsonObj(
+        "deltas" to listOf(jsonObj("ops" to ops.toList(), "info" to jsonObj("source" to jsonObj("client" to 5)))),
+        "wantResultingRevisions" to false, "wantSyncResult" to false, "nonces" to emptyList<String>(),
+    )
+
+    /**
+     * A change to the user's rootlist (the library's playlist list). Unlike a playlist's own
+     * changes, the rootlist refuses a change without the revision it applies to (HTTP 400 with an
+     * empty body): the rootlist is read for its revision and the change names it as baseRevision.
+     * [build] gets the rootlist read, for changes that need an entry's position.
+     */
+    private fun rootlistChange(build: (root: JsonElement) -> JsonObject) {
+        val user = username()
+        val root = spclientGet("/playlist/v2/user/$user/rootlist?decorate=revision,length,attributes,timestamp,owner")
+        val op = build(root)
+        val body = deltas(op).let { d -> root["revision"].str?.let { rev -> JsonObject(d + ("baseRevision" to JsonPrimitive(rev))) } ?: d }
+        spclient("/playlist/v2/user/$user/rootlist/changes", body)
+    }
+
+    // ---- account
+
+    /** The signed-in user's name, from the account page the player itself uses. Cached in the session. */
+    fun profile(): Pair<String?, String?> {
+        session.get(ctx, "userId")?.let { return it to session.account(ctx) }
+        val req = Request.Builder().url("https://www.spotify.com/api/account-settings/v1/profile")
+            .header("Cookie", cookies()).header("User-Agent", BridgeUa.desktop(ctx)).header("Accept", "application/json").build()
+        val j = http.newCall(req).execute().use { r -> if (r.isSuccessful) parseJson(r.body?.string() ?: "") else JsonNull }
+        var username = j["profile"]["username"].str
+        var name = j["profile"]["name"].str ?: j["profile"]["displayName"].str ?: username
+        if (username == null) runCatching {
+            val p = gql("profileAttributes", jsonObj())["data"]["me"]["profile"]
+            username = p["username"].str; name = p["name"].str ?: username
+        }
+        if (username != null) session.put(ctx, "userId", username)
+        return username to name
+    }
+
+    private fun username(): String = profile().first ?: throw BridgeException("Spotify: the account page did not say who is signed in")
+
+    // ---- reads
+
+    fun libraryPlaylists(): List<PlaylistDto> {
+        val me = runCatching { profile().first }.getOrNull()
+        val out = ArrayList<PlaylistDto>()
+        var offset = 0
+        while (true) {
+            val j = gql("libraryV3", jsonObj(
+                "filters" to listOf("Playlists"), "order" to null, "textFilter" to "",
+                "features" to listOf("LIKED_SONGS", "YOUR_EPISODES", "PRERELEASES"),
+                "limit" to 50, "offset" to offset, "flatten" to true, "expandedFolders" to emptyList<String>(),
+                "folderUri" to null, "includeFoldersWhenFlattening" to false,
+            ))
+            val lib = j["data"]["me"]["libraryV3"]
+            val items = lib["items"].arr
+            if (offset == 0 && lib == null) unexpected("libraryV3", j, items)
+            for (it in items) {
+                val d = it["item"]["data"] ?: it["item"]
+                val uri = d["uri"].str ?: it["item"]["_uri"].str ?: continue
+                if (!uri.startsWith("spotify:playlist:")) continue
+                val owner = d["ownerV2"]["data"]["username"].str ?: d["ownerV2"]["data"]["uri"].str?.substringAfterLast(':') ?: d["owner"]["username"].str
+                out += PlaylistDto(uri.substringAfterLast(':'), d["name"].str ?: "", -1, owned = me == null || owner == null || owner == me)
+            }
+            val total = lib["totalCount"].long?.toInt() ?: 0
+            offset += 50
+            if (items.isEmpty() || offset >= total) break
+        }
+        return out
+    }
+
+    /** Saved albums or followed artists, as the library lists them. */
+    fun libraryItems(kind: String): List<TrackDto> {
+        val filter = if (kind == "album") "Albums" else "Artists"
+        val out = ArrayList<TrackDto>()
+        var offset = 0
+        while (true) {
+            val j = gql("libraryV3", jsonObj(
+                "filters" to listOf(filter), "order" to null, "textFilter" to "",
+                "features" to listOf("LIKED_SONGS", "YOUR_EPISODES", "PRERELEASES"),
+                "limit" to 50, "offset" to offset, "flatten" to true, "expandedFolders" to emptyList<String>(),
+                "folderUri" to null, "includeFoldersWhenFlattening" to false,
+            ))
+            val lib = j["data"]["me"]["libraryV3"]
+            val items = lib["items"].arr
+            for (it in items) {
+                val d = it["item"]["data"] ?: it["item"]
+                val t = if (kind == "album") albumDto(d, it["addedAt"]["isoString"].str) else artistDto(d, it["addedAt"]["isoString"].str)
+                if (t != null) out += t
+            }
+            val total = lib["totalCount"].long?.toInt() ?: 0
+            offset += 50
+            if (items.isEmpty() || offset >= total) break
+        }
+        return out
+    }
+
+    /** A cheap sign of change: total plus the newest entry (liked songs) or the first and last entries (playlists). */
+    fun version(id: String): String? {
+        if (id == "__liked__") {
+            val lib = gql("fetchLibraryTracks", jsonObj("offset" to 0, "limit" to 1))["data"]["me"]["library"]["tracks"]
+            return "${lib["totalCount"].long}|${lib["items"][0]["addedAt"]["isoString"].str}"
+        }
+        if (id.startsWith("__")) return null
+        val first = gql("fetchPlaylist", jsonObj("uri" to "spotify:playlist:$id", "offset" to 0, "limit" to 1, "enableWatchFeedEntrypoint" to false))["data"]["playlistV2"]
+        first["revisionId"].str?.let { return it }
+        val total = first["content"]["totalCount"].long ?: return null
+        val last = if (total > 1) gql("fetchPlaylist", jsonObj("uri" to "spotify:playlist:$id", "offset" to total - 1, "limit" to 1, "enableWatchFeedEntrypoint" to false))["data"]["playlistV2"]["content"]["items"][0]["uid"].str else null
+        return "$total|${first["content"]["items"][0]["uid"].str}|$last"
+    }
+
+    fun playlistInfo(id: String): PlaylistDto {
+        val j = gql("fetchPlaylist", jsonObj("uri" to "spotify:playlist:$id", "offset" to 0, "limit" to 1, "enableWatchFeedEntrypoint" to false))
+        val p = j["data"]["playlistV2"]
+        val me = runCatching { profile().first }.getOrNull()
+        val owner = p["ownerV2"]["data"]["username"].str ?: p["ownerV2"]["data"]["uri"].str?.substringAfterLast(':')
+        return PlaylistDto(id, p["name"].str ?: id, p["content"]["totalCount"].long?.toInt() ?: -1, owned = me != null && owner == me, description = p["description"].str ?: "")
+    }
+
+    fun playlistTracks(id: String): List<TrackDto> {
+        val out = ArrayList<TrackDto>()
+        var offset = 0
+        var broken = 0
+        while (true) {
+            val j = gql("fetchPlaylist", jsonObj("uri" to "spotify:playlist:$id", "offset" to offset, "limit" to 100, "enableWatchFeedEntrypoint" to false))
+            val content = j["data"]["playlistV2"]["content"]
+            val items = content["items"].arr
+            var parsed = 0
+            for (it in items) {
+                val d = it["itemV2"]["data"] ?: it["item"]["data"]
+                val uri = it["itemV2"]["_uri"].str ?: it["item"]["_uri"].str
+                val t = trackDto(d, it["uid"].str, it["addedAt"]["isoString"].str, uri)
+                if (t != null) { out += t; parsed++ } else if (isTrackItem(d, uri)) broken++
+            }
+            val total = content["totalCount"].long?.toInt() ?: 0
+            if (parsed == 0 && offset == 0 && (items.isNotEmpty() || content == null || total != 0)) unexpected("fetchPlaylist", j, items, content)
+            offset += 100
+            if (items.isEmpty() || offset >= total) break
+        }
+        checkReadable("fetchPlaylist", out.size, broken)
+        return out
+    }
+
+    /** An entry that is a track (not a local file or an episode) and still did not parse: the page shape moved. */
+    private fun isTrackItem(d: JsonElement?, outerUri: String?) = (d["uri"].str ?: outerUri)?.startsWith("spotify:track:") == true
+
+    /**
+     * A listing where many track entries could not be read is not a shorter playlist, it is a page
+     * the parser no longer understands: handing it over as is would make a mirror sync remove the
+     * tracks it could not read. A few unreadable entries (tracks pulled from the catalogue) are normal.
+     */
+    private fun checkReadable(operation: String, parsed: Int, broken: Int) {
+        if (broken > 10 && broken * 5 > parsed + broken) {
+            throw BridgeException("Spotify $operation: $broken of ${parsed + broken} tracks could not be read, the page shape has changed")
+        }
+    }
+
+    fun likedTracks(): List<TrackDto> {
+        val out = ArrayList<TrackDto>()
+        var offset = 0
+        var broken = 0
+        while (true) {
+            val j = gql("fetchLibraryTracks", jsonObj("offset" to offset, "limit" to 100))
+            val lib = j["data"]["me"]["library"]["tracks"]
+            val items = lib["items"].arr
+            var parsed = 0
+            for (it in items) {
+                val d = it["track"]["data"] ?: it["item"]["data"]
+                val uri = it["track"]["_uri"].str ?: it["item"]["_uri"].str
+                val t = trackDto(d, it["uid"].str, it["addedAt"]["isoString"].str, uri)
+                if (t != null) { out += t; parsed++ } else if (isTrackItem(d, uri)) broken++
+            }
+            val total = lib["totalCount"].long?.toInt() ?: 0
+            // Zero liked songs is a legitimate answer only when Spotify says the total is zero.
+            if (parsed == 0 && offset == 0 && (items.isNotEmpty() || lib == null || total != 0 || lib["totalCount"] == null)) unexpected("fetchLibraryTracks", j, items, lib)
+            offset += 100
+            if (items.isEmpty() || offset >= total) break
+        }
+        checkReadable("fetchLibraryTracks", out.size, broken)
+        return out
+    }
+
+    /** Catalogue search, the player's: tracks, or albums or artists for [kind]. */
+    fun search(query: String, kind: String?): List<TrackDto> {
+        if (kind == null) {
+            val r = runCatching {
+                gql("searchTracks", jsonObj("searchTerm" to query, "offset" to 0, "limit" to 10, "numberOfTopResults" to 5, "includeAudiobooks" to false, "includePreReleases" to false))
+            }.getOrNull()
+            val items = r["data"]["searchV2"]["tracksV2"]["items"].arr
+            if (items.isNotEmpty()) return items.mapNotNull { trackDto(it["item"]["data"] ?: it["data"], null, null, it["item"]["_uri"].str) }
+        }
+        val j = gql("searchDesktop", jsonObj(
+            "searchTerm" to query, "offset" to 0, "limit" to 10, "numberOfTopResults" to 5,
+            "includeAudiobooks" to false, "includeArtistHasConcertsField" to false, "includePreReleases" to false,
+            "includeLocalConcertsField" to false, "includeAuthors" to false,
+        ))
+        val s = j["data"]["searchV2"]
+        return when (kind) {
+            "album" -> s["albumsV2"]["items"].arr.mapNotNull { albumDto(it["data"] ?: it["item"]["data"], null) }
+            "artist" -> s["artists"]["items"].arr.mapNotNull { artistDto(it["data"] ?: it["item"]["data"], null) }
+            else -> s["tracksV2"]["items"].arr.mapNotNull { trackDto(it["item"]["data"] ?: it["data"], null, null, it["item"]["_uri"].str) }
+        }
+    }
+
+    fun track(id: String): TrackDto? {
+        val j = runCatching { gql("getTrack", jsonObj("uri" to "spotify:track:$id")) }.getOrNull() ?: return null
+        val d = j["data"]["trackUnion"]
+        val artists = (d["firstArtist"]["items"].arr + d["otherArtists"]["items"].arr).mapNotNull { it["profile"]["name"].str }
+            .ifEmpty { d["artistsV2"]["items"].arr.mapNotNull { it["profile"]["name"].str } }
+        val name = d["name"].str ?: return null
+        return TrackDto(id, name, artists, d["albumOfTrack"]["name"].str ?: "", d["duration"]["totalMilliseconds"].long ?: 0, uri = "spotify:track:$id")
+    }
+
+    // ---- writes
+
+    fun createPlaylist(name: String, description: String): PlaylistDto {
+        val j = spclient("/playlist/v2/playlist", jsonObj(
+            "ops" to listOf(jsonObj("kind" to 6, "updateListAttributes" to jsonObj(
+                "newAttributes" to jsonObj("values" to jsonObj("name" to name, "description" to description, "formatAttributes" to emptyList<String>(), "pictureSize" to emptyList<String>()), "noValue" to emptyList<String>()),
+            ))),
+        ))
+        val uri = j["uri"].str ?: Regex("spotify:playlist:[A-Za-z0-9]+").find(j.toString())?.value
+            ?: throw BridgeException("Spotify: playlist not created")
+        // The store has it; the library lists it only once the rootlist does.
+        runCatching {
+            rootlistChange {
+                jsonObj("kind" to 2, "add" to jsonObj("items" to listOf(jsonObj("uri" to uri, "attributes" to jsonObj("timestamp" to System.currentTimeMillis(), "formatAttributes" to emptyList<String>(), "availableSignals" to emptyList<String>()))), "addFirst" to true))
+            }
+        }
+        return PlaylistDto(uri.substringAfterLast(':'), name, 0, owned = true, description = description)
+    }
+
+    fun addToPlaylist(id: String, uris: List<String>) {
+        uris.chunked(100).forEach { chunk ->
+            try {
+                gql("addToPlaylist", jsonObj(
+                    "uris" to chunk, "playlistItemUris" to chunk, "playlistUri" to "spotify:playlist:$id",
+                    "newPosition" to jsonObj("moveType" to "BOTTOM_OF_PLAYLIST", "fromUid" to null),
+                ))
+            } catch (e: BridgeException) {
+                if (e.message?.contains("no query hash") != true && e.message?.contains("429") == true) throw e
+                // The store accepts the same change directly.
+                spclient("/playlist/v2/playlist/$id/changes", deltas(jsonObj(
+                    "kind" to 2, "add" to jsonObj("items" to chunk.map { jsonObj("uri" to it, "attributes" to jsonObj("timestamp" to System.currentTimeMillis(), "formatAttributes" to emptyList<String>(), "availableSignals" to emptyList<String>())) }, "addLast" to true),
+                )))
+            }
+        }
+    }
+
+    /** Removes playlist entries by their uid; entries without one are looked up in the playlist. */
+    fun removeFromPlaylist(id: String, items: List<RemoveItem>) {
+        val missing = items.filter { it.setVideoId.isNullOrEmpty() }.map { it.videoId }.toSet()
+        val byTrack = if (missing.isNotEmpty()) playlistTracks(id).filter { it.id in missing }.groupBy { it.id } else emptyMap()
+        val uids = items.flatMap { r -> if (!r.setVideoId.isNullOrEmpty()) listOf(r.setVideoId) else byTrack[r.videoId].orEmpty().mapNotNull { it.setVideoId } }
+        if (uids.isEmpty()) return
+        uids.chunked(100).forEach { chunk ->
+            try {
+                gql("removeFromPlaylist", jsonObj("playlistUri" to "spotify:playlist:$id", "uids" to chunk))
+            } catch (e: BridgeException) {
+                if (e.message?.contains("429") == true) throw e
+                spclient("/playlist/v2/playlist/$id/changes", deltas(jsonObj(
+                    "kind" to 3, "rem" to jsonObj("items" to chunk.map { jsonObj("uid" to it) }, "itemsAsKey" to true),
+                )))
+            }
+        }
+    }
+
+    fun renamePlaylist(id: String, name: String) {
+        spclient("/playlist/v2/playlist/$id/changes", deltas(jsonObj(
+            "kind" to 6, "updateListAttributes" to jsonObj("newAttributes" to jsonObj("values" to jsonObj("name" to name), "noValue" to emptyList<String>())),
+        )))
+    }
+
+    /**
+     * Public means shown on the profile: the `public` attribute of the playlist's entry in the
+     * rootlist, which is what the Web API's `public` flag sets too. The entry's position is needed
+     * for the change, so the rootlist is read first.
+     */
+    fun setPublic(id: String, public: Boolean) {
+        val uri = "spotify:playlist:$id"
+        rootlistChange { root ->
+            val index = root["contents"]["items"].arr.indexOfFirst { it["uri"].str == uri }
+            if (index < 0) throw BridgeException("Spotify: the playlist is not in your library")
+            jsonObj("kind" to 5, "updateItemAttributes" to jsonObj("index" to index, "newAttributes" to jsonObj("values" to jsonObj("public" to public), "noValue" to emptyList<String>())))
+        }
+    }
+
+    /** Moves "item at from, inserted before to", applied in order: the store's MOV op, a hundred per request. */
+    fun moveItems(id: String, moves: List<Pair<Int, Int>>) {
+        moves.chunked(100).forEach { chunk ->
+            spclient("/playlist/v2/playlist/$id/changes", deltas(*chunk.map { (from, to) ->
+                jsonObj("kind" to 4, "mov" to jsonObj("fromIndex" to from, "length" to 1, "toIndex" to to))
+            }.toTypedArray()))
+        }
+    }
+
+    /** Spotify has no delete: a playlist taken off the rootlist leaves the library. */
+    fun deletePlaylist(id: String) {
+        val uri = "spotify:playlist:$id"
+        try {
+            gql("removeFromLibrary", jsonObj("uris" to listOf(uri), "libraryItemUris" to listOf(uri)))
+        } catch (e: BridgeException) {
+            if (e.message?.contains("429") == true) throw e
+            rootlistChange { jsonObj("kind" to 3, "rem" to jsonObj("items" to listOf(jsonObj("uri" to uri)), "itemsAsKey" to true)) }
+        }
+    }
+
+    /** Liked songs, saved albums, followed artists: one mutation, uris of any kind. */
+    fun addToLibrary(uris: List<String>) {
+        uris.chunked(50).forEach { chunk -> gql("addToLibrary", jsonObj("uris" to chunk, "libraryItemUris" to chunk)) }
+    }
+
+    fun removeFromLibrary(uris: List<String>) {
+        uris.chunked(50).forEach { chunk -> gql("removeFromLibrary", jsonObj("uris" to chunk, "libraryItemUris" to chunk)) }
+    }
+
+    /** The shape of an answer nothing could be read from: the keys, so the parser can be fixed from a screenshot. */
+    private fun unexpected(operation: String, j: JsonElement, items: List<JsonElement>, container: JsonElement? = null): Nothing {
+        val first = items.firstOrNull()
+        fun keys(e: JsonElement?) = (e as? JsonObject)?.keys?.joinToString(",") ?: e?.javaClass?.simpleName ?: "null"
+        val what = buildString {
+            append("data keys ").append(keys(j["data"]))
+            if (container != null) append("; list keys ").append(keys(container))
+            if (first != null) {
+                append("; item keys ").append(keys(first)).append(", typename ").append(first.findFirst("__typename").str)
+                append(", item ").append(first.toString().take(300))
+            }
+        }
+        throw BridgeException("Spotify $operation: nothing readable in the answer ($what)")
+    }
+
+    // ---- shapes
+
+    /** [outerUri]: the library and playlist rows carry the uri beside `data` (`_uri`), not always inside it. */
+    private fun trackDto(d: JsonElement?, uid: String?, addedAt: String?, outerUri: String? = null): TrackDto? {
+        val uri = d["uri"].str ?: outerUri ?: return null
+        if (!uri.startsWith("spotify:track:")) return null
+        val name = d["name"].str ?: return null
+        val artists = d["artists"]["items"].arr.mapNotNull { it["profile"]["name"].str }
+            .ifEmpty { d["artistsV2"]["items"].arr.mapNotNull { it["profile"]["name"].str } }
+            .ifEmpty { d["albumOfTrack"]["artists"]["items"].arr.mapNotNull { it["profile"]["name"].str } }
+        val duration = d["trackDuration"]["totalMilliseconds"].long ?: d["duration"]["totalMilliseconds"].long ?: 0
+        val rating = d["contentRating"]["label"].str
+        return TrackDto(
+            id = uri.substringAfterLast(':'), title = name, artists = artists, album = d["albumOfTrack"]["name"].str ?: "",
+            durationMs = duration, setVideoId = uid, uri = uri,
+            explicit = rating?.let { it.equals("EXPLICIT", true) },
+            addedAt = addedAt?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() },
+            year = d["albumOfTrack"]["date"]["year"].long?.toInt(),
+            // The player's listing says whether each entry plays here; absent in older page shapes.
+            available = (d["playability"]["playable"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull(),
+        )
+    }
+
+    private fun albumDto(d: JsonElement?, addedAt: String?): TrackDto? {
+        val uri = d["uri"].str ?: return null
+        if (!uri.startsWith("spotify:album:")) return null
+        val name = d["name"].str ?: return null
+        return TrackDto(
+            id = uri.substringAfterLast(':'), title = name, artists = d["artists"]["items"].arr.mapNotNull { it["profile"]["name"].str },
+            uri = uri, kind = "album", year = d["date"]["year"].long?.toInt(),
+            addedAt = addedAt?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() },
+        )
+    }
+
+    private fun artistDto(d: JsonElement?, addedAt: String?): TrackDto? {
+        val uri = d["uri"].str ?: return null
+        if (!uri.startsWith("spotify:artist:")) return null
+        val name = d["profile"]["name"].str ?: d["name"].str ?: return null
+        return TrackDto(
+            id = uri.substringAfterLast(':'), title = name, artists = listOf(name), uri = uri, kind = "artist",
+            addedAt = addedAt?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() },
+        )
+    }
+
+    companion object {
+        const val PATHFINDER = "https://api-partner.spotify.com/pathfinder/v1/query"
+        /** open.spotify.com's own client id, unchanged for years; the page is read first all the same. */
+        const val WEB_PLAYER_CLIENT_ID = "d8a5ed958d274c2e8ee717e6a4b0971d"
+        const val DEFAULT_APP_VERSION = "1.2.70.0"
+        @Volatile private var clientTokenFailedAt = 0L
+        @Volatile private var lastClientTokenError: String? = null
+        const val SPCLIENT = "https://spclient.wg.spotify.com"
+        private val JSON = "application/json".toMediaType()
+        val SESSION_SCRIPT = Regex("""<script[^>]*id="session"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
+        val SERVER_CONFIG = Regex("""<script[^>]*id="appServerConfig"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
+        /** `"fetchPlaylist","query","<sha256>"`: how the player's bundles name their persisted queries. */
+        val HASH = Regex(""""([A-Za-z][A-Za-z0-9_]*)"\s*,\s*"(query|mutation)"\s*,\s*"([0-9a-f]{64})"""")
+        const val REGISTRY_URL = "https://raw.githubusercontent.com/Jigen-Ohtsusuki/spotify-gql-registry/main/hashes.json"
+        val CHUNK_MAP = Regex("""\{\d+:"[^"]+"(?:,\d+:"[^"]+")*\}""")
+        private val PAIR = Regex("""(\d+):"([^"]+)"""")
+        @Volatile private var cachedPage: Pair<Long, Page>? = null
+        /** Drops the cached page: its bearer was refused, the next call fetches a fresh one. */
+        fun dropPage() { cachedPage = null }
+    }
+}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="intro">Complemento opcional para o Trackhop. Ele conecta serviços sem API aberta (YouTube Music e, de forma experimental, Amazon Music) pela mesma interface web que os players deles usam, então você não precisa de chaves de desenvolvedor. O Trackhop recebe apenas suas playlists e músicas; os logins ficam neste app.</string>
+    <string name="amazon_intro">O Amazon Music também não tem API aberta, e a oficial é reservada a parceiros aprovados. Este conector usa a interface do player web. Entre por aqui: a Amazon pode pedir o login duas vezes, primeiro em amazon.com e depois no site do seu país; conclua os dois e deixe a tela aberta até ela fechar sozinha, o que acontece assim que o player inicia. Depois rode o teste de conexão.</string>
+    <string name="amazon_connect">Entrar na Amazon</string>
+    <string name="amazon_test">Testar conexão</string>
+    <string name="amazon_test_running">Testando…</string>
+    <string name="amazon_test_ok">Conectado como %1$s. A busca de teste retornou %2$d músicas.</string>
+    <string name="amazon_test_ok_noname">Conectado. A busca de teste retornou %1$d músicas.</string>
+    <string name="amazon_test_fail">O teste falhou: %1$s</string>
+    <string name="disclaimer_review">Ler o aviso de responsabilidade</string>
+    <string name="spotify_intro">Entre na própria página do Spotify em vez de criar um app de desenvolvedor. Você digita a senha só nessa página: este app nunca a vê nem a guarda. O que fica guardado é a sessão (cookies), criptografada neste celular; o Trackhop recebe apenas suas playlists e músicas.</string>
+    <string name="spotify_connect">Entrar no Spotify</string>
+    <string name="apple_intro">Entre com seu ID Apple em music.apple.com em vez de pagar o Apple Developer Program. Você digita a senha só na página da Apple: este app nunca a vê nem a guarda. O que fica guardado é a sessão (cookies), criptografada neste celular; o Trackhop recebe apenas os tokens do player web.</string>
+    <string name="apple_connect">Entrar no Apple Music</string>
+    <string name="language">Idioma</string>
+    <string name="warning_title">Leia isto primeiro</string>
+    <string name="warning_body">Esta não é uma API oficial do Google. Usá-la vai contra os Termos de Serviço do YouTube, ela pode parar de funcionar sempre que o Google mudar algo e, no pior caso, o Google pode restringir a conta com que você entra. Use por sua conta e risco, de preferência com uma conta que você possa perder. O caminho oficial (sua própria chave do Google Cloud) continua disponível no Trackhop.</string>
+    <string name="verify_hint">O Google bloqueou este endereço de rede por tráfego incomum. O bloqueio cai sozinho alguns minutos depois que as solicitações param: o Bridge pausa todas as chamadas ao YouTube Music e diz ao Trackhop quanto esperar. Se a página do Google oferecer uma verificação, concluí-la aqui remove o bloqueio na hora.</string>
+    <string name="status_connected">Conectado como %1$s</string>
+    <string name="status_connected_plain">Conectado</string>
+    <string name="status_disconnected">Não conectado</string>
+    <string name="privacy_note">Sua sessão fica guardada, criptografada, apenas neste celular. Ela nunca é enviada ao Trackhop, ao desenvolvedor dele nem a mais ninguém.</string>
+    <string name="connect">Entrar com o Google</string>
+    <string name="disconnect">Sair</string>
+    <string name="open_trackhop">Abrir o Trackhop</string>
+    <string name="source_code">Código-fonte e licença</string>
+    <string name="version">Versão %1$s</string>
+</resources>

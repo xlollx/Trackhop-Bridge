@@ -2,25 +2,26 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
-    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 def hasReleaseKey = System.getenv('KEYSTORE_FILE') != null && !System.getenv('KEYSTORE_FILE').isEmpty()
 
 android {
-    namespace 'com.xlollx.songport.ytmbridge'
+    // The app's own R and BuildConfig. The code keeps the package com.xlollx.songport.ytmbridge,
+    // whose namespace belongs to the :bridge library.
+    namespace 'com.xlollx.songport.ytmbridge.app'
     compileSdk 36
 
     defaultConfig {
         applicationId "com.xlollx.songport.ytmbridge"
         minSdk 26
         targetSdk 36
-        versionCode 33
-        versionName "1.3.21"
+        versionCode 34
+        versionName "1.4.0"
     }
 
     signingConfigs {
-        // Stessa logica di Songport: chiave di debug fissa se app/debug.keystore esiste.
+        // As in Trackhop: a fixed debug key when app/debug.keystore exists.
         debug {
             def fixedDebugKey = file("debug.keystore")
             if (fixedDebugKey.exists()) {
@@ -82,9 +83,10 @@ dependencies {
     implementation platform('androidx.compose:compose-bom:2025.06.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.material3:material3'
-    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
-    // Document-start scripts for the traffic capture WebView.
-    implementation 'androidx.webkit:webkit:1.13.0'
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1'
+    // The connectors: sign-in screens, web players and BridgeCore, the methods BridgeProvider serves.
+    implementation project(':bridge')
+
+    // The IPC contract test (Robolectric for the provider, no network).
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
 }

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Songport Bridge</string>
-    <string name="login_title">Sign in to YouTube Music</string>
-    <string name="intro">Optional companion for Songport. It connects services that have no open API (YouTube Music, and Amazon Music as an experiment) through the same web interface their players use, so you do not need developer keys. Songport only receives your playlists and tracks; the logins themselves stay in this app.</string>
-    <string name="ytm_title">YouTube Music</string>
-    <string name="amazon_title">Amazon Music (experimental)</string>
+    <!-- The sign-in, disclaimer and capture texts come from the :bridge library (bridge_*). -->
+    <string name="app_name" translatable="false">Trackhop Bridge</string>
+    <string name="ytm_title" translatable="false">YouTube Music</string>
+    <string name="spotify_title" translatable="false">Spotify</string>
+    <string name="apple_title" translatable="false">Apple Music</string>
+    <string name="intro">Optional companion for Trackhop. It connects services that have no open API (YouTube Music, and Amazon Music as an experiment) through the same web interface their players use, so you do not need developer keys. Trackhop only receives your playlists and tracks; the logins themselves stay in this app.</string>
     <string name="amazon_intro">Amazon Music has no open API either, and its official one is reserved to approved partners. This connector uses the web player\'s interface. Sign in here: Amazon may ask twice, first on amazon.com and then on your country\'s site, so complete both and leave the screen open until it closes by itself, which happens as soon as the player has started. Then run the connection test.</string>
     <string name="amazon_connect">Sign in to Amazon</string>
     <string name="amazon_test">Test connection</string>
@@ -12,38 +13,22 @@
     <string name="amazon_test_ok">Connected as %1$s. Search test returned %2$d tracks.</string>
     <string name="amazon_test_ok_noname">Connected. Search test returned %1$d tracks.</string>
     <string name="amazon_test_fail">Test failed: %1$s</string>
-    <string name="amazon_capture">Capture traffic</string>
-    <string name="amazon_capture_intro">Use Amazon Music normally here: open Library → Playlists, open one of your playlists, create a playlist, add a song to it, remove it, search for a song. Every call the player makes is written to a file on this phone, without cookies or tokens. Then tap Share and send the file to the developer.</string>
-    <string name="amazon_capture_share">Share</string>
-    <string name="amazon_capture_clear">Clear</string>
-    <string name="amazon_capture_count">%1$d calls captured</string>
-    <string name="disclaimer_title">Disclaimer</string>
-    <string name="disclaimer_body">Songport Bridge is an independent, open-source project. It is not affiliated with, endorsed by or connected to Google, YouTube, Amazon or any music service.\n\nIt talks to these services through the same interfaces their own web players use, not through an official API. This is against their terms of service. It can stop working at any time, and the service may limit, suspend or close the account you sign in with.\n\nThe software is provided \"as is\", without warranty of any kind. By continuing you accept that you use it entirely at your own risk and that the developer accepts no responsibility or liability for any consequence, including restrictions on your accounts or loss of data.</string>
-    <string name="disclaimer_accept">I understand and accept</string>
     <string name="disclaimer_review">Read the disclaimer</string>
-    <string name="spotify_title">Spotify</string>
-    <string name="spotify_intro">Sign in on Spotify\'s own page instead of creating a developer app. You type your password only on that page: this app never sees or stores it. What is kept is the session (cookies), encrypted on this phone; Songport only receives a short-lived token.</string>
+    <string name="spotify_intro">Sign in on Spotify\'s own page instead of creating a developer app. You type your password only on that page: this app never sees or stores it. What is kept is the session (cookies), encrypted on this phone; Trackhop only receives your playlists and tracks.</string>
     <string name="spotify_connect">Sign in to Spotify</string>
-    <string name="apple_title">Apple Music</string>
-    <string name="apple_intro">Sign in with your Apple ID on music.apple.com instead of paying for the Apple Developer Program. You type your password only on Apple\'s page: this app never sees or stores it. What is kept is the session (cookies), encrypted on this phone; Songport only receives the web player\'s tokens.</string>
+    <string name="apple_intro">Sign in with your Apple ID on music.apple.com instead of paying for the Apple Developer Program. You type your password only on Apple\'s page: this app never sees or stores it. What is kept is the session (cookies), encrypted on this phone; Trackhop only receives the web player\'s tokens.</string>
     <string name="apple_connect">Sign in to Apple Music</string>
-    <string name="login_hint">Sign in on the service\'s page. This screen closes on its own; if it does not, tap Done.</string>
-    <string name="login_finishing">Almost done: the player is starting, leave this screen open until it closes by itself. If the player asks who is listening, pick your profile.</string>
-    <string name="login_done">Done</string>
-    <string name="login_not_signed_in">No session yet: complete the sign-in on this page first.</string>
     <string name="language">Language</string>
-    <string name="language_system">System language</string>
     <string name="warning_title">Read this first</string>
-    <string name="warning_body">This is not an official Google API. Using it is against the YouTube Terms of Service, it can stop working whenever Google changes something, and in the worst case Google could restrict the account you sign in with. Use it at your own risk, ideally with an account you can afford to lose. The official route (your own Google Cloud key) remains available in Songport.</string>
-    <string name="verify_google">What Google says</string>
-    <string name="verify_hint">Google has blocked this network address for unusual traffic. The block lifts by itself a few minutes after the requests stop: the Bridge pauses all YouTube Music calls and tells Songport how long to wait. If Google\'s page offers a verification, completing it here lifts the block at once.</string>
+    <string name="warning_body">This is not an official Google API. Using it is against the YouTube Terms of Service, it can stop working whenever Google changes something, and in the worst case Google could restrict the account you sign in with. Use it at your own risk, ideally with an account you can afford to lose. The official route (your own Google Cloud key) remains available in Trackhop.</string>
+    <string name="verify_hint">Google has blocked this network address for unusual traffic. The block lifts by itself a few minutes after the requests stop: the Bridge pauses all YouTube Music calls and tells Trackhop how long to wait. If Google\'s page offers a verification, completing it here lifts the block at once.</string>
     <string name="status_connected">Connected as %1$s</string>
     <string name="status_connected_plain">Connected</string>
     <string name="status_disconnected">Not connected</string>
-    <string name="privacy_note">Your session is stored encrypted on this phone only. It is never sent to Songport, to its developer or to anyone else.</string>
+    <string name="privacy_note">Your session is stored encrypted on this phone only. It is never sent to Trackhop, to its developer or to anyone else.</string>
     <string name="connect">Sign in with Google</string>
     <string name="disconnect">Sign out</string>
-    <string name="open_songport">Open Songport</string>
+    <string name="open_trackhop">Open Trackhop</string>
     <string name="source_code">Source code and license</string>
     <string name="version">Version %1$s</string>
 </resources>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="intro">Trackhop の任意のコンパニオンアプリです。オープンな API のないサービス（YouTube Music と、試験的に Amazon Music）を、各プレーヤーが使っているのと同じウェブインターフェースで接続するので、開発者キーは不要です。Trackhop が受け取るのはプレイリストと曲だけで、ログイン情報そのものはこのアプリに残ります。</string>
+    <string name="amazon_intro">Amazon Music にもオープンな API はなく、公式 API は承認されたパートナー専用です。このコネクタはウェブプレーヤーのインターフェースを使います。ここでログインしてください。Amazon は 2 回ログインを求めることがあります（最初に amazon.com、次にお住まいの国のサイト）。両方を完了し、画面が自動で閉じるまで開いたままにしてください。プレーヤーが起動するとすぐに閉じます。その後、接続テストを実行してください。</string>
+    <string name="amazon_connect">Amazon にログイン</string>
+    <string name="amazon_test">接続をテスト</string>
+    <string name="amazon_test_running">テスト中…</string>
+    <string name="amazon_test_ok">%1$s として接続済み。テスト検索で %2$d 曲が見つかりました。</string>
+    <string name="amazon_test_ok_noname">接続済み。テスト検索で %1$d 曲が見つかりました。</string>
+    <string name="amazon_test_fail">テストに失敗しました: %1$s</string>
+    <string name="disclaimer_review">免責事項を読む</string>
+    <string name="spotify_intro">開発者アプリを作成する代わりに、Spotify 自身のページでログインします。パスワードを入力するのはそのページだけで、このアプリがそれを見たり保存したりすることはありません。保存されるのはセッション（Cookie）だけで、この端末に暗号化して保存されます。Trackhop が受け取るのはプレイリストと曲だけです。</string>
+    <string name="spotify_connect">Spotify にログイン</string>
+    <string name="apple_intro">Apple Developer Program に料金を払う代わりに、music.apple.com で Apple ID を使ってログインします。パスワードを入力するのは Apple のページだけで、このアプリがそれを見たり保存したりすることはありません。保存されるのはセッション（Cookie）だけで、この端末に暗号化して保存されます。Trackhop が受け取るのはウェブプレーヤーのトークンだけです。</string>
+    <string name="apple_connect">Apple Music にログイン</string>
+    <string name="language">言語</string>
+    <string name="warning_title">最初にお読みください</string>
+    <string name="warning_body">これは Google の公式 API ではありません。利用は YouTube の利用規約に反し、Google が何かを変更すればいつでも動かなくなる可能性があり、最悪の場合、ログインに使ったアカウントが Google によって制限されることがあります。自己責任で、できれば失っても困らないアカウントで使ってください。公式の方法（ご自身の Google Cloud キー）は引き続き Trackhop で利用できます。</string>
+    <string name="verify_hint">Google がこのネットワークアドレスを異常なトラフィックとしてブロックしました。ブロックはリクエストが止まってから数分で自動的に解除されます。Bridge は YouTube Music へのすべての呼び出しを一時停止し、待つべき時間を Trackhop に伝えます。Google のページに確認手続きが表示されている場合は、ここで完了するとすぐにブロックが解除されます。</string>
+    <string name="status_connected">%1$s として接続済み</string>
+    <string name="status_connected_plain">接続済み</string>
+    <string name="status_disconnected">未接続</string>
+    <string name="privacy_note">セッションはこの端末にのみ暗号化して保存されます。Trackhop、その開発者、その他の誰にも送信されることはありません。</string>
+    <string name="connect">Google でログイン</string>
+    <string name="disconnect">ログアウト</string>
+    <string name="open_trackhop">Trackhop を開く</string>
+    <string name="source_code">ソースコードとライセンス</string>
+    <string name="version">バージョン %1$s</string>
+</resources>

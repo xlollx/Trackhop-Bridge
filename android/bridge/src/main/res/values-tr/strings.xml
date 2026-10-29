@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Texts of the built-in web connectors. The bridge_ prefix keeps them apart from Trackhop's own. -->
+<resources>
+    <string name="bridge_amazon_capture_intro">Amazon Music\'i burada normal şekilde kullanın: Library → Playlists bölümünü açın, çalma listelerinizden birini açın, bir çalma listesi oluşturun, içine bir şarkı ekleyin, kaldırın, bir şarkı arayın; çalma listesinin menüsünden (Play yanındaki üç nokta) yeniden adlandırın ve silin. Oynatıcının yaptığı her çağrı, çerezler veya jetonlar olmadan bu telefondaki bir dosyaya yazılır. Sonra Paylaş\'a dokunup dosyayı geliştiriciye gönderin.</string>
+    <string name="bridge_amazon_capture_share">Paylaş</string>
+    <string name="bridge_amazon_capture_clear">Temizle</string>
+    <string name="bridge_amazon_capture_count">%1$d çağrı yakalandı</string>
+    <string name="bridge_disclaimer_title">Sorumluluk reddi</string>
+    <string name="bridge_disclaimer_body">Trackhop\'un web bağlayıcıları (YouTube Music, Amazon Music ile Spotify ve Apple Music için web oturum açma) bağımsız, açık kaynaklı bir projenin parçasıdır; Google, YouTube, Amazon, Spotify, Apple veya herhangi bir müzik servisiyle bağlantılı değildir, onlar tarafından onaylanmamıştır.\n\nBu servislerle resmi bir API üzerinden değil, kendi web oynatıcılarının kullandığı arayüzler üzerinden konuşurlar. Bu, servislerin hizmet koşullarına aykırıdır. Her an çalışmayı bırakabilirler ve servis, oturum açtığınız hesabı kısıtlayabilir, askıya alabilir veya kapatabilir.\n\nYazılım \"olduğu gibi\", hiçbir garanti olmaksızın sunulur. Devam ederek, yazılımı tamamen kendi sorumluluğunuzda kullandığınızı ve geliştiricinin, hesaplarınızdaki kısıtlamalar veya veri kaybı dahil hiçbir sonuç için sorumluluk kabul etmediğini kabul etmiş olursunuz.</string>
+    <string name="bridge_disclaimer_accept">Anladım ve kabul ediyorum</string>
+    <string name="bridge_login_hint">Servisin sayfasında oturum açın. Bu ekran kendiliğinden kapanır; kapanmazsa Bitti\'ye dokunun.</string>
+    <string name="bridge_login_finishing">Neredeyse bitti: oynatıcı başlıyor, kendiliğinden kapanana kadar bu ekranı açık bırakın. Oynatıcı kimin dinlediğini sorarsa profilinizi seçin.</string>
+    <string name="bridge_login_done">Bitti</string>
+    <string name="bridge_login_not_signed_in">Henüz oturum yok: önce bu sayfada oturum açmayı tamamlayın.</string>
+    <string name="bridge_language_system">Sistem dili</string>
+    <string name="bridge_verify_hint">Google, olağan dışı trafik nedeniyle bu ağ adresini engelledi. Engel, istekler durduktan birkaç dakika sonra kendiliğinden kalkar: Trackhop, Google istediği sürece tüm YouTube Music çağrılarını duraklatır. Google\'ın sayfası bir doğrulama sunuyorsa, burada tamamlamak engeli hemen kaldırır.</string>
+    <string name="bridge_login_title">YouTube Music\'te oturum aç</string>
+    <string name="bridge_amazon_title">Amazon Music (deneysel)</string>
+    <string name="bridge_amazon_capture">Trafiği yakala</string>
+    <string name="bridge_verify_google">Google ne diyor</string>
+</resources>

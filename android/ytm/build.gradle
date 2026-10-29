@@ -1,0 +1,37 @@
+// The YouTube Music web client (the endpoints of the music.youtube.com player) and the small JSON
+// and data helpers the web connectors share, without Android: the app's :bridge module wraps it
+// with the WebView and the Keystore, the server build (server/) uses it with plain HTTP. The Play
+// build includes neither. Nothing here may import android.* or androidx.*.
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+    id 'org.jetbrains.kotlin.plugin.serialization'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+dependencies {
+    api 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1'
+    api 'com.squareup.okhttp3:okhttp:4.12.0'
+    testImplementation 'junit:junit:4.13.2'
+    // Contract tests against a local mock server, never music.youtube.com.
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+}
+
+test {
+    testLogging {
+        events "failed"
+        exceptionFormat "full"
+        showExceptions true
+        showCauses true
+        showStackTraces false
+    }
+}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="intro">Trackhop 的可选配套应用。它通过各服务播放器所用的同一网页接口，连接没有开放 API 的服务（YouTube Music，以及实验性的 Amazon Music），因此无需开发者密钥。Trackhop 只会收到你的播放列表和曲目；登录信息本身保留在本应用中。</string>
+    <string name="amazon_intro">Amazon Music 同样没有开放 API，官方 API 仅向获批合作伙伴开放。此连接器使用网页播放器的接口。请在这里登录：Amazon 可能会要求登录两次，先在 amazon.com，再在你所在国家的站点；请完成两次登录，并保持此页面打开，直到它自动关闭——播放器一启动就会关闭。然后运行连接测试。</string>
+    <string name="amazon_connect">登录 Amazon</string>
+    <string name="amazon_test">测试连接</string>
+    <string name="amazon_test_running">正在测试…</string>
+    <string name="amazon_test_ok">已连接为 %1$s。测试搜索返回了 %2$d 首曲目。</string>
+    <string name="amazon_test_ok_noname">已连接。测试搜索返回了 %1$d 首曲目。</string>
+    <string name="amazon_test_fail">测试失败：%1$s</string>
+    <string name="disclaimer_review">阅读免责声明</string>
+    <string name="spotify_intro">在 Spotify 自己的页面上登录，而无需创建开发者应用。你只在该页面输入密码：本应用永远看不到也不会保存它。保留的只有会话（Cookie），加密存储在这部手机上；Trackhop 只会收到你的播放列表和曲目。</string>
+    <string name="spotify_connect">登录 Spotify</string>
+    <string name="apple_intro">在 music.apple.com 上用你的 Apple ID 登录，而无需付费加入 Apple Developer Program。你只在 Apple 的页面输入密码：本应用永远看不到也不会保存它。保留的只有会话（Cookie），加密存储在这部手机上；Trackhop 只会收到网页播放器的令牌。</string>
+    <string name="apple_connect">登录 Apple Music</string>
+    <string name="language">语言</string>
+    <string name="warning_title">请先阅读</string>
+    <string name="warning_body">这不是 Google 的官方 API。使用它违反 YouTube 服务条款，Google 一旦有所改动它就可能失效，最坏的情况下 Google 可能会限制你登录所用的账号。使用风险由你自行承担，最好使用一个丢失也无妨的账号。官方途径（你自己的 Google Cloud 密钥）在 Trackhop 中仍然可用。</string>
+    <string name="verify_hint">Google 因异常流量封锁了这个网络地址。请求停止几分钟后，封锁会自动解除：Bridge 会暂停所有 YouTube Music 调用，并告诉 Trackhop 需要等待多久。如果 Google 的页面提供验证，在这里完成验证即可立即解除封锁。</string>
+    <string name="status_connected">已连接为 %1$s</string>
+    <string name="status_connected_plain">已连接</string>
+    <string name="status_disconnected">未连接</string>
+    <string name="privacy_note">你的会话仅加密保存在这部手机上，绝不会发送给 Trackhop、其开发者或任何其他人。</string>
+    <string name="connect">使用 Google 登录</string>
+    <string name="disconnect">退出登录</string>
+    <string name="open_trackhop">打开 Trackhop</string>
+    <string name="source_code">源代码和许可证</string>
+    <string name="version">版本 %1$s</string>
+</resources>

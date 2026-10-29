@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="intro">Необязательное приложение-компаньон для Trackhop. Оно подключает сервисы без открытого API (YouTube Music и, в экспериментальном режиме, Amazon Music) через тот же веб-интерфейс, которым пользуются их плееры, поэтому ключи разработчика не нужны. Trackhop получает только ваши плейлисты и треки; сами входы в аккаунты остаются в этом приложении.</string>
+    <string name="amazon_intro">У Amazon Music тоже нет открытого API, а официальный доступен только одобренным партнёрам. Этот коннектор использует интерфейс веб-плеера. Войдите здесь: Amazon может попросить войти дважды, сначала на amazon.com, затем на сайте вашей страны; завершите оба входа и не закрывайте экран, пока он не закроется сам, — это произойдёт, как только плеер запустится. Затем запустите проверку подключения.</string>
+    <string name="amazon_connect">Войти в Amazon</string>
+    <string name="amazon_test">Проверить подключение</string>
+    <string name="amazon_test_running">Проверка…</string>
+    <string name="amazon_test_ok">Подключено как %1$s. Тестовый поиск вернул треков: %2$d.</string>
+    <string name="amazon_test_ok_noname">Подключено. Тестовый поиск вернул треков: %1$d.</string>
+    <string name="amazon_test_fail">Проверка не удалась: %1$s</string>
+    <string name="disclaimer_review">Прочитать отказ от ответственности</string>
+    <string name="spotify_intro">Войдите на странице самого Spotify вместо создания приложения разработчика. Пароль вы вводите только на этой странице: это приложение его не видит и не сохраняет. Сохраняется только сеанс (cookie), в зашифрованном виде на этом телефоне; Trackhop получает только ваши плейлисты и треки.</string>
+    <string name="spotify_connect">Войти в Spotify</string>
+    <string name="apple_intro">Войдите со своим Apple ID на music.apple.com вместо оплаты Apple Developer Program. Пароль вы вводите только на странице Apple: это приложение его не видит и не сохраняет. Сохраняется только сеанс (cookie), в зашифрованном виде на этом телефоне; Trackhop получает только токены веб-плеера.</string>
+    <string name="apple_connect">Войти в Apple Music</string>
+    <string name="language">Язык</string>
+    <string name="warning_title">Сначала прочитайте</string>
+    <string name="warning_body">Это не официальный API Google. Его использование нарушает Условия использования YouTube, оно может перестать работать, как только Google что-то изменит, а в худшем случае Google может ограничить аккаунт, с которым вы входите. Используйте на свой страх и риск, лучше с аккаунтом, потерю которого вы переживёте. Официальный путь (ваш собственный ключ Google Cloud) по-прежнему доступен в Trackhop.</string>
+    <string name="verify_hint">Google заблокировал этот сетевой адрес из-за необычного трафика. Блокировка снимается сама через несколько минут после того, как запросы прекратятся: Bridge приостанавливает все обращения к YouTube Music и сообщает Trackhop, сколько ждать. Если страница Google предлагает проверку, её прохождение здесь сразу снимает блокировку.</string>
+    <string name="status_connected">Подключено как %1$s</string>
+    <string name="status_connected_plain">Подключено</string>
+    <string name="status_disconnected">Не подключено</string>
+    <string name="privacy_note">Ваш сеанс хранится в зашифрованном виде только на этом телефоне. Он никогда не отправляется ни в Trackhop, ни его разработчику, ни кому-либо ещё.</string>
+    <string name="connect">Войти через Google</string>
+    <string name="disconnect">Выйти</string>
+    <string name="open_trackhop">Открыть Trackhop</string>
+    <string name="source_code">Исходный код и лицензия</string>
+    <string name="version">Версия %1$s</string>
+</resources>

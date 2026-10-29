@@ -1,26 +1,33 @@
 <p align="center">
-  <img src="docs/icon.png" width="128" alt="Songport Bridge">
+  <img src="docs/icon.png" width="128" alt="Trackhop Bridge">
 </p>
 
-# Songport Bridge
+# Trackhop Bridge
 
-Optional companion app for [Songport](https://github.com/xlollx/Songport). It connects music services
+Optional companion app for [Trackhop](https://github.com/xlollx/Trackhop). It connects music services
 that have no open API, or whose official route is heavy for a single user, through the same web
-interfaces their own players use. Songport discovers this app when installed and offers those
+interfaces their own players use. Trackhop discovers this app when installed and offers those
 services; it never includes, downloads or installs it.
 
-> **Using Songport from GitHub or F-Droid? You do not need this app.** Since Songport 1.0.44 these
-> connectors are built into those versions: add the service in Songport's Accounts and sign in there.
-> The Bridge is kept for the Google Play version of Songport, which contains official APIs only.
+> **Songport Bridge is now Trackhop Bridge**, because Songport is now Trackhop. Same app, same code,
+> same updates. The name changed because an unrelated service called "SongPort", a music link
+> converter, works in the same space, and two apps with one name confuse people. Your installed Bridge
+> updates normally and keeps its sign-ins; only the name and the look changed. The package id
+> (`com.xlollx.songport.ytmbridge`), this repository's address and the release file names
+> (`SongportYtmBridge-vX.apk`) stay as they were, so existing installs and update tools keep working.
 
-It is distributed **only here, as an APK**, never on Google Play. The Songport build on Google Play
+> **Using Trackhop from GitHub or F-Droid? You do not need this app.** These connectors are built into
+> those versions: add the service in Trackhop's Accounts and sign in there. The Bridge is kept for the
+> Google Play version of Trackhop, which contains official APIs only.
+
+It is distributed **only here, as an APK**, never on Google Play. The Trackhop build on Google Play
 uses only official APIs and never mentions or links to this app.
 
-| Service | What it adds | Official route in Songport |
+| Service | What it adds | Official route in Trackhop |
 |---------|--------------|----------------------------|
-| YouTube Music | playlists, liked songs, search, create, add, remove, without a Google Cloud project and without quota | YouTube Data API v3 with your own key (10,000 units/day) |
-| Amazon Music | playlists, search, create, add, remove | none: Amazon's Web API is a closed beta for approved partners |
-| Spotify | sign-in without registering a developer app | OAuth with your own client ID |
+| YouTube Music | playlists, liked songs, search, create, add, remove, reorder, rename, delete, without a Google Cloud project and without quota | YouTube Data API v3 with your own key (10,000 units/day) |
+| Amazon Music | playlists, search, create, add, remove, delete | none: Amazon's Web API is a closed beta for approved partners |
+| Spotify | your playlists through the web player, without registering a developer app and without Premium | OAuth with your own client ID |
 | Apple Music | sign-in without the Apple Developer Program | MusicKit with your own developer token (99 €/year) |
 
 ## Read this before installing
@@ -38,138 +45,147 @@ uses only official APIs and never mentions or links to this app.
 - **Your passwords are never seen or stored.** You type them only on the services' pages inside the
   WebView. What the app keeps is the session (cookies), encrypted with the Android Keystore.
 
+## Where the code comes from
+
+The connectors are developed in Trackhop, where they are the `:bridge` and `:ytm` modules of its
+GitHub and F-Droid build. This app carries **the same code**: `android/bridge` and `android/ytm` are
+copies made by `scripts/sync-from-trackhop.sh` (the only change: messages name "Trackhop Bridge"), and
+`android/UPSTREAM` records the Trackhop commit they come from. Do not edit them here: fix them in
+Trackhop, then run
+
+```bash
+scripts/sync-from-trackhop.sh ../Trackhop   # path to a Trackhop checkout
+```
+
+and commit the result. What belongs to this app alone is `android/app`: the main screen, the
+`BridgeProvider` that answers Trackhop, and the manifest that exports the sign-in screens.
+
 ## How each connector works
 
 ### YouTube Music
 
 A WebView opens accounts.google.com; when Google lands on music.youtube.com the session cookies are
-stored encrypted. Requests go to `youtubei/v1/...` signed with `SAPISIDHASH`, carrying the visitor
-id and client version read from the player page so they look like the player's own. They are issued
-as `fetch()` calls from a hidden WebView parked on a tiny page of music.youtube.com: Google's abuse
+stored encrypted. Requests go to `youtubei/v1/...` signed with `SAPISIDHASH`, carrying the visitor id
+and client version read from the player page so they look like the player's own. They are issued as
+`fetch()` calls from a hidden WebView parked on a tiny page of music.youtube.com: Google's abuse
 detection ("Sorry..." pages, HTTP 403) keys on the client's TLS and HTTP fingerprint, which a plain
-HTTP library cannot imitate and a Chrome engine has by nature. Plain HTTP remains the fallback.
-Calls are paced (and slowed further after each refusal) because the web interface throttles bursts
-of searches, on two separate lanes: signed-in calls keep a gentle rhythm, anonymous searches a brisk
-one, and Songport runs a few of the latter in parallel. Catalogue searches run **anonymously** (no
-cookies, an anonymous visitor id): they do not need the account, and the account's own quota is what
-a long sync would otherwise exhaust. Only if the anonymous route is refused does a search fall back
-to the signed-in session. Library reads and writes always use the session.
+HTTP library cannot imitate and a Chrome engine has by nature. Plain HTTP remains the fallback. Calls
+are paced, on separate lanes for signed-in calls and anonymous searches; catalogue searches run
+**anonymously** where they can, so a long sync does not spend the account's own quota. When Google
+blocks the address, every call stops for as long as Google asks, and the main screen offers Google's
+own page, where a verification lifts the block at once.
 
-Endpoints: `browse` (playlists, playlist contents, liked songs), `search` with the songs filter (and
-with the videos filter when asked: a song missing from the music catalogue often exists as a YouTube
-video, which a playlist accepts all the same),
-`playlist/create`, `browse/edit_playlist`, `like/like`, `like/removelike`. Responses are parsed by
-looking for known renderer names anywhere in the tree, not by fixed paths, so small layout changes do
-not break it.
+Responses are parsed by looking for known renderer names anywhere in the tree, not by fixed paths,
+so small layout changes do not break it. The client lives in `android/ytm`, free of Android.
 
 ### Amazon Music
 
 Sign-in may happen twice: Amazon authenticates on amazon.com first, then sends the account to its
 regional player (music.amazon.it, music.amazon.de, ...), which can ask again. The sign-in screen
-therefore does not close on the first cookie: it waits until the player has started and made its
-first API call, which is also what tells the app which regional site to keep. Amazon issues an
-access token only to the running player, so neither `/config.json` (served anonymously) nor the page
-HTML carries one. The Bridge therefore loads the player with the stored session and mirrors the
-`x-amzn-*` headers the player builds for its own calls. A player nobody is looking at does not
-always start, so the sign-in and traffic-capture screens install the same hook in their own visible
-WebView: signing in waits a few seconds on the player's page until the headers are seen, and an
-offscreen player refreshes them later. `amznMusic.appConfig` is the fallback. Those headers are kept
-encrypted with the session for thirty minutes and reused for calls to
-`<region>.web.skill.music.a2z.com/api/<method>`, serialised inside the request body rather than sent
-as HTTP headers. Methods: `showLibraryPlaylists`, `showLibraryPlaylist` (rows carry the entry id
-needed to remove a track), `searchCatalogTracks`, `createPlaylist`, `addTrackToPlaylist`,
-`removeTrackFromPlaylist`.
+therefore waits until the player has started and made its first API call, which is also what tells
+the app which regional site to keep. Calls go to the player's GraphQL endpoint
+(`gql.music.amazon.<tld>`) with the session cookies plus the CSRF triple, device and session ids the
+player sends, read from the configuration the signed-in page inlines. A refused session is renewed
+the way a browser renews it (the player page fetched again, new CSRF values and cookies); when Amazon
+still refuses, a hidden player WebView supplies the headers it really uses, or sends the call itself
+from inside the page.
 
-They were mapped from traffic recorded with the app's own **Capture traffic** screen, which runs the
-real player in a WebView and mirrors its API calls into a local file with cookies and tokens stripped.
-The screen stays available for when Amazon changes something: use the player normally, then share the
-file in an issue.
+The operations were mapped from traffic recorded with the app's own **Capture traffic** screen, which
+runs the real player in a WebView and mirrors its API calls into a local file with cookies and tokens
+stripped. The screen stays available for when Amazon changes something: use the player normally,
+then share the file in an issue.
 
 ### Spotify
 
-The user signs in on accounts.spotify.com. When Songport needs a token, the Bridge loads
-open.spotify.com in a hidden WebView and captures the access token the web player itself requests at
-start-up (`/api/token`). Letting the real player make that request keeps it working when Spotify
-changes the request's anti-abuse parameters. That token is a first-party token the public Web API
-accepts; it lasts about an hour and is handed to Songport, which then runs its normal Spotify code.
+The user signs in on accounts.spotify.com. Since December 2025 Spotify refuses the web player's token
+on its public Web API, so the Bridge talks to the player's own backend instead, the way
+open.spotify.com does: the GraphQL gateway for reading and the playlist service for writing, with the
+player's session token and client token. The query hashes are read from the player's own code.
+Trackhop receives playlists and tracks, never the session.
 
 ### Apple Music
 
-The user signs in with their Apple ID on music.apple.com. The Bridge reads Apple's own MusicKit
-developer token from the player's JavaScript and the music user token from the `media-user-token`
-cookie, and hands both to Songport, which runs its normal Apple Music code.
+The user signs in with their Apple ID on music.apple.com. The Bridge takes Apple's own MusicKit
+developer token from the player's calls and the music user token from the `media-user-token` cookie,
+and hands both to Trackhop, which runs its Apple Music code against the player's backend.
 
-## Interface to Songport
+## Interface to Trackhop
 
 The Bridge is a *connector plugin*: it declares the intent action
 `com.xlollx.songport.action.CONNECTOR` and a `<meta-data>` entry
-`com.xlollx.songport.connector.authority` naming its provider, so Songport finds it without knowing
-its package name. Songport then calls the `ContentProvider`
-(`content://com.xlollx.songport.ytmbridge.provider`) with `ContentResolver.call()`:
+`com.xlollx.songport.connector.authority` naming its provider, so Trackhop finds it without knowing
+its package name. Trackhop then calls the `ContentProvider`
+(`content://com.xlollx.songport.ytmbridge.provider`) with `ContentResolver.call()`. The methods are
+Trackhop's `BridgeCore`, the same its GitHub and F-Droid build calls in-process:
 
 | Prefix | Methods |
 |--------|---------|
-| YouTube Music (no prefix) | `status`, `disconnect`, `playlists`, `playlistInfo`, `tracks` (paged), `search`, `create`, `add`, `remove` |
-| `amazon.` | `status`, `disconnect`, `playlists`, `tracks`, `search`, `create`, `add`, `remove` |
-| `spotify.` | `status`, `disconnect`, `token` |
+| YouTube Music (no prefix) | `status`, `disconnect`, `playlists`, `playlistInfo`, `tracks` (paged), `search`, `stats`, `create`, `add`, `remove`, `rename`, `delete`, `visibility`, `reorder` |
+| `amazon.` | `status`, `disconnect`, `playlists`, `tracks`, `search`, `create`, `add`, `remove`, `rename`, `delete`, `visibility` |
+| `spotify.` | `status`, `disconnect`, `playlists`, `playlistInfo`, `version`, `tracks` (paged), `track`, `search`, `create`, `add`, `remove`, `rename`, `delete`, `visibility`, `reorder`, `token` |
 | `apple.` | `status`, `disconnect`, `tokens` |
 
 Sign-in screens are started with the actions `…ytmbridge.LOGIN`, `.AMAZON_LOGIN`, `.SPOTIFY_LOGIN`
-and `.APPLE_LOGIN`.
+and `.APPLE_LOGIN`. A unit test (`IpcContractTest`) checks that every method Trackhop calls is still
+served after a sync.
 
 ## Security model
 
 - The provider is exported, but **every call verifies the caller**: package name
-  `com.xlollx.songport` and the SHA-256 of its signing certificate must match the list in
-  `BridgeProvider.kt` (`Allowed`). Any other app gets an error and no data.
-- Sessions never leave this app. Songport receives playlists and tracks, or short-lived API tokens,
+  `com.xlollx.songport` (Trackhop's id, kept from its Songport days) and the SHA-256 of its signing
+  certificate must match the list in `BridgeProvider.kt` (`Allowed`). Any other app gets an error and
+  no data.
+- Sessions never leave this app. Trackhop receives playlists and tracks, or short-lived API tokens,
   nothing else.
 - There is no server: the phone talks to the services directly.
 - Signing out of a service deletes its stored session and its cookies in the WebView; the other
   services stay connected.
 
-A fork that rebuilds Songport with its own signing key must also rebuild the Bridge with that key's
+A fork that rebuilds Trackhop with its own signing key must also rebuild the Bridge with that key's
 fingerprint in `Allowed.SHA256`, otherwise the two apps will not talk to each other.
 
 ## Beta
 
-The Bridge is in open beta together with Songport. It is the part most exposed to changes on the
+The Bridge is in open beta together with Trackhop. It is the part most exposed to changes on the
 services' side, so "it worked yesterday" reports are expected and welcome: open an
-[issue](https://github.com/xlollx/Songport-YTM-Bridge/issues/new/choose) with Songport's technical
+[issue](https://github.com/xlollx/Songport-YTM-Bridge/issues/new/choose) with Trackhop's technical
 details report (Settings → *Sync log* → *Share technical details*), which includes the plugin
-statistics, and for
-Amazon Music the file from the **Capture traffic** screen.
+statistics, and for Amazon Music the file from the **Capture traffic** screen.
 
 ## Install
 
 1. Download the latest APK from the [Releases](https://github.com/xlollx/Songport-YTM-Bridge/releases) page.
 2. Install it (Android asks to allow installs from your browser or file manager once).
 3. Open the Bridge, accept the disclaimer and sign in to the services you want.
-4. In Songport: Accounts → **+** → pick the service → give the connector a name → **Connect**.
+4. In Trackhop: Accounts → **+** → pick the service → give the connector a name → **Connect**.
 
-Updates: install the new APK over the old one. The app is in English, Italian, French and German, with
-a language picker on its main screen.
+Updates: install the new APK over the old one. The app is in English, Italian, German, Spanish,
+French, Brazilian Portuguese, Polish, Russian, Turkish, Japanese, Korean and Chinese, the same
+languages as Trackhop, with a language picker on its main screen.
 
 ## Building
 
 JDK 17 and an Android SDK with platform 36. From `android/`:
 
 ```bash
-gradle assembleDebug          # APK in app/build/outputs/apk/debug/
+./gradlew assembleDebug                  # APK in app/build/outputs/apk/debug/
+./gradlew testDebugUnitTest :ytm:test    # contract tests against local mock servers, no network
 ```
 
-GitHub Actions builds every push. With the `UPLOAD_KEYSTORE_BASE64`, `UPLOAD_KEYSTORE_PASSWORD`,
-`UPLOAD_KEY_ALIAS` and `UPLOAD_KEY_PASSWORD` secrets it also produces the signed release APK, and a
-push to `main` whose `versionName` in `app/build.gradle` has no tag yet creates the tag and publishes
-the APK as a GitHub Release. To release, bump `versionCode` and `versionName` and push.
+`scripts/icon.sh` redraws `docs/icon.png` from the icon's geometry (needs ImageMagick).
+
+GitHub Actions builds and tests every push. With the `UPLOAD_KEYSTORE_BASE64`,
+`UPLOAD_KEYSTORE_PASSWORD`, `UPLOAD_KEY_ALIAS` and `UPLOAD_KEY_PASSWORD` secrets it also produces the
+signed release APK, and a push to `main` whose `versionName` in `app/build.gradle` has no tag yet
+creates the tag and publishes the APK as a GitHub Release. To release, bump `versionCode` and
+`versionName` and push.
 
 ## When it breaks
 
-Open an issue with the Songport diagnostics report (Songport: Settings → Sync log → "Share
-technical details")
-and the Bridge version. For Amazon Music, the Capture traffic screen produces exactly what is needed
-to fix a changed method. Parsing lives in `YtmClient.kt` and `AmazonClient.kt`; most fixes are a
-renderer name or a field that moved.
+Open an issue with Trackhop's diagnostics report (Trackhop: Settings → Sync log → "Share technical
+details") and the Bridge version. For Amazon Music, the Capture traffic screen produces exactly what
+is needed to fix a changed method. The fix itself goes into Trackhop (`android/bridge`,
+`android/ytm`), then comes here with a sync.
 
 ## License
 
