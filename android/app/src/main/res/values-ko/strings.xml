@@ -26,4 +26,17 @@
     <string name="open_trackhop">Trackhop 열기</string>
     <string name="source_code">소스 코드 및 라이선스</string>
     <string name="version">버전 %1$s</string>
+    <string name="update_available">업데이트 있음: %1$s</string>
+    <string name="update_download">다운로드</string>
+    <string name="update_needs_trackhop">이 업데이트에는 Trackhop %1$s 이상이 필요합니다. 먼저 Trackhop을 업데이트하세요.</string>
+    <string name="update_needs_newer_trackhop">이 업데이트에는 최신 Trackhop이 필요합니다. 먼저 Trackhop을 업데이트하세요.</string>
+    <string name="update_check_title">업데이트 확인</string>
+    <string name="update_check_summary">하루 한 번, GitHub에서만 확인합니다. 아무것도 보내지 않습니다.</string>
+    <string name="update_check_now">지금 확인</string>
+    <string name="update_checking">확인 중…</string>
+    <string name="update_up_to_date">최신 버전입니다.</string>
+    <string name="update_check_failed">확인할 수 없습니다. 나중에 다시 시도하세요.</string>
+    <string name="update_channel">업데이트</string>
+    <string name="update_notification_title">Trackhop Bridge %1$s 사용 가능</string>
+    <string name="update_notification_text">탭하면 GitHub에서 릴리스가 열립니다.</string>
 </resources>

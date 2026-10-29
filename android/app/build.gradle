@@ -16,8 +16,10 @@ android {
         applicationId "com.xlollx.songport.ytmbridge"
         minSdk 26
         targetSdk 36
-        versionCode 34
-        versionName "1.4.0"
+        versionCode 35
+        versionName "1.4.1"
+        // The oldest Trackhop this build works with, from gradle.properties.
+        buildConfigField "int", "MIN_TRACKHOP", project.property('minTrackhopVersionCode')
     }
 
     signingConfigs {
@@ -83,10 +85,28 @@ dependencies {
     implementation platform('androidx.compose:compose-bom:2025.06.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.material3:material3'
+    // The daily update check.
+    implementation 'androidx.work:work-runtime-ktx:2.10.2'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1'
     // The connectors: sign-in screens, web players and BridgeCore, the methods BridgeProvider serves.
     implementation project(':bridge')
 
     // The IPC contract test (Robolectric for the provider, no network).
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.14.1'
+}
+
+// The release's bridge.json (the workflow publishes it with every release): this version and the
+// oldest Trackhop it works with. The update check of installed Bridges reads it.
+tasks.register('bridgeJson') {
+    def out = layout.buildDirectory.file('bridge.json')
+    def json = groovy.json.JsonOutput.toJson([
+        versionCode    : android.defaultConfig.versionCode,
+        versionName    : android.defaultConfig.versionName,
+        minTrackhop    : project.property('minTrackhopVersionCode').toInteger(),
+        minTrackhopName: project.property('minTrackhopVersionName'),
+    ])
+    inputs.property('json', json)
+    outputs.file(out)
+    doLast { out.get().asFile.text = json + '\n' }
 }

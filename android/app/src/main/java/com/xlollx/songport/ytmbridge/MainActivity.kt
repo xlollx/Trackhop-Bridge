@@ -1,7 +1,10 @@
 package com.xlollx.songport.ytmbridge
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -25,19 +29,23 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlin.concurrent.thread
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.xlollx.songport.ytmbridge.app.BuildConfig
 import com.xlollx.songport.ytmbridge.app.R
@@ -51,6 +59,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UpdateCheck.ensureScheduled(applicationContext)
         setContent {
             BridgeTheme {
                 Surface(Modifier.fillMaxSize()) { Screen() }
@@ -71,12 +80,26 @@ private fun Screen() {
     val connected = remember(version) { Session.isConnected(ctx) }
     val account = remember(version) { Session.account(ctx) }
     var showDisclaimer by remember { mutableStateOf(false) }
+    var updateChecked by remember { mutableIntStateOf(0) }
+    val update = remember(version, updateChecked) { UpdateCheck.current(ctx) }
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val askNotifications = {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            UpdateCheck.markAskedPermission(ctx)
+            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    // The first update found is the one moment to ask for notifications unprompted; never again after.
+    LaunchedEffect(update) {
+        if (update is UpdateDecision.Available && UpdateCheck.enabled(ctx) && !UpdateCheck.askedPermission(ctx)) askNotifications()
+    }
 
     Column(
         Modifier.fillMaxSize().safeDrawingPadding().padding(20.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         HeroHeader(stringResource(R.string.app_name), stringResource(R.string.version, BuildConfig.VERSION_NAME))
+        UpdateBanner(update)
         Text(stringResource(R.string.intro), style = MaterialTheme.typography.bodyLarge)
 
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
@@ -128,6 +151,8 @@ private fun Screen() {
         )
 
         AmazonCard(version, onChanged = { version++ })
+
+        UpdatesCard(onChecked = { updateChecked++ }, onEnabled = askNotifications)
 
         Spacer(Modifier.height(4.dp))
         Button(
@@ -238,6 +263,81 @@ private fun AmazonCard(version: Int, onChanged: () -> Unit) {
             testResult?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             if (connected) {
                 TextButton(onClick = { ctx.startActivity(Intent(ctx, AmazonCaptureActivity::class.java)) }) { Text(stringResource(BridgeR.string.bridge_amazon_capture)) }
+            }
+        }
+    }
+}
+
+/** A newer Bridge on GitHub: its version and a download button, or why Trackhop must be updated first. */
+@Composable
+private fun UpdateBanner(update: UpdateDecision) {
+    val ctx = LocalContext.current
+    when (update) {
+        UpdateDecision.None -> Unit
+        is UpdateDecision.Available -> Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.update_available, update.release.name),
+                    style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.weight(1f),
+                )
+                Button(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.release.htmlUrl))) }) {
+                    Text(stringResource(R.string.update_download))
+                }
+            }
+        }
+        is UpdateDecision.NeedsTrackhop -> Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.update_available, update.release.name), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    update.minTrackhopName?.let { stringResource(R.string.update_needs_trackhop, it) } ?: stringResource(R.string.update_needs_newer_trackhop),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+    }
+}
+
+/** The update check's switch, what it does in one line, and a manual check. */
+@Composable
+private fun UpdatesCard(onChecked: () -> Unit, onEnabled: () -> Unit) {
+    val ctx = LocalContext.current
+    var enabled by remember { mutableStateOf(UpdateCheck.enabled(ctx)) }
+    var checking by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.update_check_title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.update_check_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(checked = enabled, onCheckedChange = { on ->
+                    enabled = on
+                    UpdateCheck.setEnabled(ctx, on)
+                    if (on) onEnabled()
+                })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(enabled = !checking, onClick = {
+                    checking = true
+                    result = ctx.getString(R.string.update_checking)
+                    val app = ctx.applicationContext
+                    val upToDate = ctx.getString(R.string.update_up_to_date)
+                    val failed = ctx.getString(R.string.update_check_failed)
+                    thread {
+                        // A manual check only updates the screen; the notification is for the daily one.
+                        result = when (UpdateCheck.run(app, notify = false)) {
+                            null -> failed
+                            UpdateDecision.None -> upToDate
+                            else -> null
+                        }
+                        checking = false
+                        onChecked()
+                    }
+                }) { Text(stringResource(R.string.update_check_now)) }
+                result?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
     }

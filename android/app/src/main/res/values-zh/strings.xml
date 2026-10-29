@@ -26,4 +26,17 @@
     <string name="open_trackhop">打开 Trackhop</string>
     <string name="source_code">源代码和许可证</string>
     <string name="version">版本 %1$s</string>
+    <string name="update_available">有可用更新：%1$s</string>
+    <string name="update_download">下载</string>
+    <string name="update_needs_trackhop">此更新需要 Trackhop %1$s 或更高版本。请先更新 Trackhop。</string>
+    <string name="update_needs_newer_trackhop">此更新需要较新版本的 Trackhop。请先更新 Trackhop。</string>
+    <string name="update_check_title">检查更新</string>
+    <string name="update_check_summary">每天一次，仅访问 GitHub，不发送任何信息。</string>
+    <string name="update_check_now">立即检查</string>
+    <string name="update_checking">正在检查…</string>
+    <string name="update_up_to_date">已是最新版本。</string>
+    <string name="update_check_failed">无法检查，请稍后再试。</string>
+    <string name="update_channel">更新</string>
+    <string name="update_notification_title">Trackhop Bridge %1$s 现已推出</string>
+    <string name="update_notification_text">点按即可在 GitHub 上打开此版本。</string>
 </resources>

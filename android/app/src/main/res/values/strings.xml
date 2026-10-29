@@ -31,4 +31,18 @@
     <string name="open_trackhop">Open Trackhop</string>
     <string name="source_code">Source code and license</string>
     <string name="version">Version %1$s</string>
+    <!-- Update check. -->
+    <string name="update_available">Update available: %1$s</string>
+    <string name="update_download">Download</string>
+    <string name="update_needs_trackhop">This update needs Trackhop %1$s or newer. Update Trackhop first.</string>
+    <string name="update_needs_newer_trackhop">This update needs a newer Trackhop. Update Trackhop first.</string>
+    <string name="update_check_title">Check for updates</string>
+    <string name="update_check_summary">Once a day, from GitHub only. Nothing is sent.</string>
+    <string name="update_check_now">Check now</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_up_to_date">You have the latest version.</string>
+    <string name="update_check_failed">Could not check. Try again later.</string>
+    <string name="update_channel">Updates</string>
+    <string name="update_notification_title">Trackhop Bridge %1$s is available</string>
+    <string name="update_notification_text">Tap to open the release on GitHub.</string>
 </resources>

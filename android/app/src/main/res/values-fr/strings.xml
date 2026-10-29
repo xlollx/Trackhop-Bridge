@@ -26,4 +26,17 @@
     <string name="open_trackhop">Ouvrir Trackhop</string>
     <string name="source_code">Code source et licence</string>
     <string name="version">Version %1$s</string>
+    <string name="update_available">Mise à jour disponible : %1$s</string>
+    <string name="update_download">Télécharger</string>
+    <string name="update_needs_trackhop">Cette mise à jour nécessite Trackhop %1$s ou plus récent. Mettez d\'abord Trackhop à jour.</string>
+    <string name="update_needs_newer_trackhop">Cette mise à jour nécessite une version plus récente de Trackhop. Mettez d\'abord Trackhop à jour.</string>
+    <string name="update_check_title">Rechercher des mises à jour</string>
+    <string name="update_check_summary">Une fois par jour, uniquement auprès de GitHub. Rien n\'est envoyé.</string>
+    <string name="update_check_now">Vérifier maintenant</string>
+    <string name="update_checking">Vérification…</string>
+    <string name="update_up_to_date">Vous avez la dernière version.</string>
+    <string name="update_check_failed">Vérification impossible. Réessayez plus tard.</string>
+    <string name="update_channel">Mises à jour</string>
+    <string name="update_notification_title">Trackhop Bridge %1$s est disponible</string>
+    <string name="update_notification_text">Touchez pour ouvrir la version sur GitHub.</string>
 </resources>

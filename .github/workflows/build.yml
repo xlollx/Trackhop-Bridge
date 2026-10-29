@@ -2,7 +2,8 @@ name: Build
 
 # Builds and tests Trackhop Bridge on every push, pull request and by hand. When the versionName in
 # app/build.gradle has no matching tag yet, a push to main creates the tag and publishes the signed
-# release APK as a GitHub Release (the Bridge is distributed only here, never on Google Play).
+# release APK, with bridge.json for the Bridge's update check, as a GitHub Release (the Bridge is
+# distributed only here, never on Google Play).
 # Pushing a tag v* by hand publishes a release for that tag too.
 on:
   push:
@@ -59,6 +60,19 @@ jobs:
       # The connectors' contract tests (local mock servers, no network) and the IPC contract.
       - name: Unit tests
         run: gradle testDebugUnitTest :ytm:test --no-daemon --stacktrace
+
+      # The release's bridge.json: this version and the oldest Trackhop it works with
+      # (minTrackhopVersionCode in gradle.properties). Made on every build, so branch runs check it too.
+      - name: Release metadata (bridge.json)
+        run: |
+          gradle :app:bridgeJson --no-daemon --quiet
+          python3 -m json.tool app/build/bridge.json
+          cp app/build/bridge.json "$GITHUB_WORKSPACE/bridge.json"
+          # The same JSON heads the release notes as a hidden comment: installed Bridges read it from
+          # the API's release answer, so the update check never contacts a host other than api.github.com.
+          # Keep that line when editing the notes by hand.
+          printf '<!-- bridge.json %s -->\n' "$(tr -d '\n' < app/build/bridge.json)" > "$GITHUB_WORKSPACE/release-notes.md"
+          cat "$GITHUB_WORKSPACE/release-notes.md"
 
       - name: Upload debug APK
         continue-on-error: true
@@ -118,5 +132,8 @@ jobs:
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          files: SongportYtmBridge-*.apk
+          files: |
+            SongportYtmBridge-*.apk
+            bridge.json
+          body_path: release-notes.md
           generate_release_notes: true

@@ -26,6 +26,8 @@ class BridgeProvider : ContentProvider() {
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
         val ctx = context ?: return err("no context")
         if (!Allowed.callerOk(ctx, callingPackage)) return err("caller not allowed")
+        // Most users never open the Bridge: its daily update check starts with Trackhop's first call.
+        UpdateCheck.ensureScheduled(ctx.applicationContext)
         val out = BridgeCore.call(ctx.applicationContext, method, arg, extras)
         // The status calls report this app's version, not the built-in connectors' marker.
         if (method == "status" || method.endsWith(".status")) out.putInt("version", BuildConfig.VERSION_CODE)

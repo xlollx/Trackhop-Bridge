@@ -3,8 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The update check's "new version available" notification (Android 13+ asks the user). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- The Bridge opens Trackhop from its button: package visibility is needed (Android 11+). -->
+    <!-- The Bridge opens Trackhop from its button and reads its versionCode for the update check:
+         package visibility is needed (Android 11+). -->
     <queries>
         <package android:name="com.xlollx.songport" />
     </queries>

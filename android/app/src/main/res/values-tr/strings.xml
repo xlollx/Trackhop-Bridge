@@ -26,4 +26,17 @@
     <string name="open_trackhop">Trackhop\'u aç</string>
     <string name="source_code">Kaynak kodu ve lisans</string>
     <string name="version">Sürüm %1$s</string>
+    <string name="update_available">Güncelleme var: %1$s</string>
+    <string name="update_download">İndir</string>
+    <string name="update_needs_trackhop">Bu güncelleme Trackhop %1$s veya daha yenisini gerektirir. Önce Trackhop\'u güncelle.</string>
+    <string name="update_needs_newer_trackhop">Bu güncelleme daha yeni bir Trackhop gerektirir. Önce Trackhop\'u güncelle.</string>
+    <string name="update_check_title">Güncellemeleri denetle</string>
+    <string name="update_check_summary">Günde bir kez, yalnızca GitHub\'dan. Hiçbir şey gönderilmez.</string>
+    <string name="update_check_now">Şimdi denetle</string>
+    <string name="update_checking">Denetleniyor…</string>
+    <string name="update_up_to_date">En son sürümü kullanıyorsun.</string>
+    <string name="update_check_failed">Denetlenemedi. Daha sonra tekrar dene.</string>
+    <string name="update_channel">Güncellemeler</string>
+    <string name="update_notification_title">Trackhop Bridge %1$s yayınlandı</string>
+    <string name="update_notification_text">Sürümü GitHub\'da açmak için dokun.</string>
 </resources>

@@ -175,6 +175,23 @@ Updates: install the new APK over the old one. The app is in English, Italian, G
 French, Brazilian Portuguese, Polish, Russian, Turkish, Japanese, Korean and Chinese, the same
 languages as Trackhop, with a language picker on its main screen.
 
+## Update check
+
+Once a day the Bridge asks GitHub whether a newer release exists: one plain request to
+`https://api.github.com/repos/xlollx/Trackhop-Bridge/releases/latest`, without an account, cookies or
+any identifier, and to no other host. When a newer Bridge works with the installed Trackhop, a
+notification says so and opens the release page; when it needs a newer Trackhop, the main screen
+says to update Trackhop first instead. Nothing is downloaded or installed by itself.
+
+Each release carries a small `bridge.json` (`versionCode`, `versionName` and `minTrackhop`, the
+oldest Trackhop versionCode it works with, set by `minTrackhopVersionCode` in
+`android/gradle.properties`). The same JSON heads the release notes as a hidden comment, which is
+where the Bridge reads it, so the check needs only the API's answer.
+
+Turn it off with **Check for updates** on the main screen; **Check now** checks once by hand. If you
+update with [Obtainium](https://github.com/ImranR98/Obtainium) or another tool, you can switch it off:
+the asset names stay `SongportYtmBridge-vX.Y.Z.apk`.
+
 ## Building
 
 JDK 17 and an Android SDK with platform 36. From `android/`:
