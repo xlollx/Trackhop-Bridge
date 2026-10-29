@@ -58,6 +58,7 @@ class AmazonLoginActivity : ComponentActivity() {
         }
         root.addView(bar); root.addView(web)
         setContentView(root)
+        BridgeInsets.fit(root)
 
         CookieManager.getInstance().apply { setAcceptCookie(true); setAcceptThirdPartyCookies(web, true) }
         web.settings.apply {

@@ -37,7 +37,10 @@ class LoginActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setup() {
         web = WebView(this)
-        setContentView(web)
+        // In a frame that keeps clear of the status bar (the screen draws edge to edge).
+        val root = android.widget.FrameLayout(this).apply { addView(web) }
+        setContentView(root)
+        BridgeInsets.fit(root)
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(web, true)

@@ -190,6 +190,44 @@ class SoundCloudWebClientContractTest {
         assertEquals(fresh, SoundCloudBridge.session.get(app, "clientId"))
     }
 
+    // ------------------------------------------------------------------ the sign-in's identity and DataDome
+
+    @Test fun apiCallsCarryTheSignInsUserAgentAndDataDomeCookie() {
+        val ua = "Mozilla/5.0 (Linux; Android 15; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.7390.122 Mobile Safari/537.36"
+        SoundCloudBridge.session.save(app, "oauth_token=2-290000-123-AbCdEf; datadome=k~Xy_1; sc_anonymous_id=x", "scuser")
+        SoundCloudBridge.rememberUserAgent(app, ua)
+        answer(set(1001))
+        sc.tracks("1001")
+        assertApi(call(0), "GET", "/playlists/1001")
+        assertEquals(ua, call(0).getHeader("User-Agent"))
+        // Only DataDome's cookie goes along: the account travels in the Authorization header.
+        assertEquals("datadome=k~Xy_1", call(0).getHeader("Cookie"))
+    }
+
+    @Test fun aSessionFromBeforeKeepsItsDesktopIdentityAndSendsNoCookie() {
+        answer(set(1001))
+        sc.tracks("1001")
+        assertEquals(BridgeUa.desktop(app), call(0).getHeader("User-Agent"))
+        assertNull(call(0).getHeader("Cookie"))
+    }
+
+    @Test fun aDataDomeRefusalIsSaidAtOnceAndNamesNoApp() {
+        answer("""{"url":"https://geo.captcha-delivery.com/captcha/?initialCid=AHrl&hash=05B3&cid=k~x&t=bv&referer=x&s=1"}""", 403)
+        try { sc.tracks("1001"); fail() } catch (e: BridgeException) {
+            assertEquals(SoundCloudBridge.BLOCKED, e.message)
+            assertFalse(e.message!!.contains("Trackhop") || e.message!!.contains("Bridge"))
+        }
+        // No second try and no fresh client id: asking again only adds to what DataDome counts.
+        assertEquals(1, BridgeMock.all.size)
+    }
+
+    @Test fun anOrdinary403StillRefreshesTheClientIdOnce() {
+        answer("""{"error":"forbidden"}""", 403)
+        answer(set(1001))
+        sc.tracks("1001")
+        assertEquals(fresh, call(1).requestUrl!!.queryParameter("client_id"))
+    }
+
     // ------------------------------------------------------------------ writes
 
     @Test fun createIsAPrivateEmptySet() {

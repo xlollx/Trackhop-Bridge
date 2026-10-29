@@ -51,14 +51,21 @@ object BridgeUa {
                 .build()
             WebSettingsCompat.setUserAgentMetadata(web.settings, md)
         }
-        // A WebView adds "X-Requested-With: <app package>" to its requests, which no browser sends:
-        // the one header saying "embedded in an app". An empty allow-list keeps it off everywhere.
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) runCatching {
-            WebSettingsCompat.setRequestedWithHeaderOriginAllowList(web.settings, emptySet())
-        }
+        dropAppHeader(web)
         // The page-side view of the same hints, for a WebView that cannot set them natively.
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) runCatching {
             WebViewCompat.addDocumentStartJavaScript(web, hintsScript(major, full, "Windows", false, "", "15.0.0", "x86"), setOf("*"))
+        }
+    }
+
+    /**
+     * A WebView adds "X-Requested-With: <app package>" to its requests, which no browser sends:
+     * the one header saying "embedded in an app". An empty allow-list keeps it off everywhere.
+     * Nothing else about the WebView changes: its own user agent, client hints and scripts stay.
+     */
+    fun dropAppHeader(web: WebView) {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) runCatching {
+            WebSettingsCompat.setRequestedWithHeaderOriginAllowList(web.settings, emptySet())
         }
     }
 

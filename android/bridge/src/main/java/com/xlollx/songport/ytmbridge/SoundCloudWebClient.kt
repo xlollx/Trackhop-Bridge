@@ -57,9 +57,11 @@ class SoundCloudWebClient(private val ctx: Context) {
         throw BridgeException("SoundCloud changed its web app: no client id in its scripts")
     }
 
+    /** The site's page and scripts, read without the account (as Trackhop's public-link reader does, as desktop Chrome). */
     private fun fetch(url: String, accept: String): String {
         val req = Request.Builder().url(url).header("User-Agent", BridgeUa.desktop(ctx)).header("Accept", accept).build()
         val resp = send(req)
+        if (resp.first == 403 && DataDome.kindOfBody(resp.second) != null) throw BridgeException(SoundCloudBridge.BLOCKED)
         if (resp.first !in 200..299) throw BridgeException("SoundCloud: HTTP ${resp.first} for ${url.substringBefore('?')}")
         return resp.second
     }
@@ -68,7 +70,11 @@ class SoundCloudWebClient(private val ctx: Context) {
 
     /**
      * One call. A 401 or 403 is first taken for a rotated client id (fetched again, once); a second
-     * refusal with the account's token means the session is gone. A 404 is [NotFound].
+     * refusal with the account's token means the session is gone. A 404 is [NotFound]. A refusal
+     * from DataDome (its 403 names captcha-delivery.com) is said as such at once: asking again,
+     * for a client id or anything else, would only add to what it counts.
+     *
+     * The headers match the sign-in: its user agent and, when DataDome left one, its cookie.
      */
     private fun api(method: String, path: String, body: JsonElement? = null): JsonElement {
         var refreshed = false
@@ -78,10 +84,12 @@ class SoundCloudWebClient(private val ctx: Context) {
                 .removeAllQueryParameters("client_id").addQueryParameter("client_id", cid).build()
             val b = Request.Builder().url(url)
                 .header("Accept", "application/json, text/javascript, */*; q=0.01")
-                .header("User-Agent", BridgeUa.desktop(ctx))
+                .header("User-Agent", SoundCloudBridge.userAgent(ctx))
                 .header("Origin", SITE).header("Referer", "$SITE/")
-            val tok = token()
+            val jar = session.cookies(ctx)
+            val tok = SoundCloudBridge.oauthToken(jar)
             if (tok != null) b.header("Authorization", "OAuth $tok")
+            SoundCloudBridge.dataDomeCookie(jar)?.let { b.header("Cookie", "datadome=$it") }
             val payload = (body?.toString() ?: "").toRequestBody(JSON)
             when (method) {
                 "GET" -> b.get()
@@ -92,6 +100,7 @@ class SoundCloudWebClient(private val ctx: Context) {
             when {
                 code in 200..299 -> return runCatching { parseJson(text) }.getOrNull() ?: JsonNull
                 code == 404 -> throw NotFound()
+                code == 403 && DataDome.kindOfBody(text) != null -> throw BridgeException(SoundCloudBridge.BLOCKED)
                 (code == 401 || code == 403) && !refreshed -> { refreshed = true; runCatching { clientId(refresh = true) } }
                 code == 401 -> throw BridgeException(if (tok != null) EXPIRED else "SoundCloud refused the web app's client id: it may have changed its web app")
                 code == 403 -> throw BridgeException("SoundCloud refused this ($method ${url.encodedPath}): HTTP 403")

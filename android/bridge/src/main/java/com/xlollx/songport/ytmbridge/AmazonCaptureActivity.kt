@@ -51,6 +51,7 @@ class AmazonCaptureActivity : ComponentActivity() {
         web = WebView(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f) }
         root.addView(bar); root.addView(hint); root.addView(web)
         setContentView(root)
+        BridgeInsets.fit(root)
         refresh()
 
         CookieManager.getInstance().apply { setAcceptCookie(true); setAcceptThirdPartyCookies(web, true) }

@@ -38,6 +38,8 @@ class WebLoginActivity : ComponentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var done = false
     private lateinit var service: String
+    private lateinit var notice: android.widget.TextView
+    private var seen: DataDome.Kind? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +71,14 @@ class WebLoginActivity : ComponentActivity() {
                 if (!check()) android.widget.Toast.makeText(this@WebLoginActivity, R.string.bridge_login_not_signed_in, android.widget.Toast.LENGTH_LONG).show()
             }
         })
+        // Said in words when the service's bot protection refuses the sign-in: its own page can be a
+        // dead end ("You have been blocked") with nothing to tap.
+        notice = android.widget.TextView(this).apply {
+            textSize = 14f
+            setPadding(24, 16, 24, 16)
+            setBackgroundColor(0x33FF5252)
+            visibility = android.view.View.GONE
+        }
         // The page sits in a frame so a sign-in popup (Facebook, Google, Apple ID) can open above it.
         frame = android.widget.FrameLayout(this).apply {
             layoutParams = android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
@@ -77,8 +87,10 @@ class WebLoginActivity : ComponentActivity() {
             layoutParams = android.widget.FrameLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
         }
         frame.addView(web)
-        root.addView(bar); root.addView(frame)
+        root.addView(bar); root.addView(notice); root.addView(frame)
         setContentView(root)
+        // Edge to edge: the bar would otherwise sit under the status bar, and the keyboard over the fields.
+        BridgeInsets.fit(root)
         CookieManager.getInstance().apply { setAcceptCookie(true); setAcceptThirdPartyCookies(web, true) }
         web.settings.apply {
             javaScriptEnabled = true
@@ -88,14 +100,21 @@ class WebLoginActivity : ComponentActivity() {
             displayZoomControls = false
             // Spotify refuses its web player to anything whose user agent says "wv" (a WebView) and
             // shows "Playback disabled - incompatible browser". A desktop identity avoids that page;
-            // Apple's pages work with the default one.
+            // Apple's pages work with the default one, and SoundCloud needs it (see [identity]).
         }
-        if (service != APPLE) BridgeUa.apply(this, web)
+        identity(web)
+        if (service == SOUNDCLOUD) {
+            // A DataDome cookie from an earlier attempt (as desktop Chrome, or already flagged) would
+            // tie this one to it: the sign-in starts as a new visitor. The account's cookies stay.
+            val dropped = dropCookie(SoundCloudBridge.SITE, "datadome")
+            BridgeNet.log("soundcloud", "sign-in started as the phone's WebView (${BridgeUa.describe()}; ${if (dropped) "old DataDome cookie removed" else "no DataDome cookie"})")
+        }
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val scheme = request.url.scheme
                 if (scheme == "http" || scheme == "https") return false
-                if (scheme == "intent") {
+                // SoundCloud's phone-sized site may try to hand over to its app by itself: only a tap does that.
+                if (scheme == "intent" && (service != SOUNDCLOUD || request.hasGesture())) {
                     runCatching {
                         Intent.parseUri(request.url.toString(), Intent.URI_INTENT_SCHEME).apply {
                             addCategory(Intent.CATEGORY_BROWSABLE); component = null; selector = null
@@ -114,7 +133,14 @@ class WebLoginActivity : ComponentActivity() {
                 if (service == SOUNDCLOUD && request.url.host == "api-v2.soundcloud.com") {
                     SoundCloudBridge.rememberClientId(applicationContext, request.url.toString())
                 }
-                return super.shouldInterceptRequest(view, request)
+                watchBotCheck(request.url.toString())
+                // Only watched: every request goes on as the page made it.
+                return null
+            }
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                // A new page is a new chance: its own block, if any, shows the notice again.
+                seen = null
+                notice.visibility = android.view.View.GONE
             }
             override fun onPageFinished(view: WebView, url: String) {
                 if (service == APPLE) view.evaluateJavascript(
@@ -135,9 +161,13 @@ class WebLoginActivity : ComponentActivity() {
                         javaScriptEnabled = true; domStorageEnabled = true
                         setSupportMultipleWindows(true); javaScriptCanOpenWindowsAutomatically = true
                     }
-                    if (service != APPLE) BridgeUa.apply(this@WebLoginActivity, this)
+                    identity(this)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                     webViewClient = object : WebViewClient() {
+                        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                            watchBotCheck(request.url.toString())
+                            return null
+                        }
                         override fun onPageFinished(view: WebView, url: String) { check() }
                     }
                     webChromeClient = object : WebChromeClient() {
@@ -171,6 +201,62 @@ class WebLoginActivity : ComponentActivity() {
         }, 1500)
     }
 
+    /**
+     * The browser identity of the page and its popups.
+     * - Apple: the WebView's own, as it always was.
+     * - SoundCloud: the WebView's own as well, without the app header and without any script.
+     *   soundcloud.com sits behind DataDome, which reads the browser from inside the page (touch,
+     *   screen, platform, how navigator's properties are defined) and blocked a WebView whose user
+     *   agent, client hints and patched navigator.userAgentData said desktop Chrome on Windows while
+     *   everything else said Android. A plain mobile browser has nothing to disagree with.
+     * - Spotify and Deezer: desktop Chrome, as before (Spotify refuses a "wv" user agent).
+     */
+    private fun identity(w: WebView) {
+        when (service) {
+            APPLE -> Unit
+            SOUNDCLOUD -> BridgeUa.dropAppHeader(w)
+            else -> BridgeUa.apply(this, w)
+        }
+    }
+
+    /** Called from WebView threads with every address a page loads; only reads it. */
+    private fun watchBotCheck(url: String) {
+        val kind = DataDome.kindOf(url) ?: return
+        handler.post { botCheck(kind) }
+    }
+
+    private fun botCheck(kind: DataDome.Kind) {
+        if (done || isFinishing || kind == seen) return
+        seen = kind
+        BridgeNet.log(service, when (kind) {
+            DataDome.Kind.BLOCKED -> "sign-in: the bot protection (DataDome) blocked the page"
+            DataDome.Kind.CAPTCHA -> "sign-in: the bot protection (DataDome) shows a puzzle"
+            DataDome.Kind.CHECK -> "sign-in: the bot protection (DataDome) checks the browser"
+        })
+        // A puzzle or the browser check works in the page itself: nothing is put in its way.
+        if (kind != DataDome.Kind.BLOCKED) return
+        notice.text = getString(R.string.bridge_login_blocked, serviceName())
+        notice.visibility = android.view.View.VISIBLE
+    }
+
+    private fun serviceName() = when (service) {
+        APPLE -> "Apple Music"
+        DEEZER -> "Deezer"
+        SOUNDCLOUD -> "SoundCloud"
+        else -> "Spotify"
+    }
+
+    /** Removes one cookie of [site]'s domain; true when there was one. */
+    private fun dropCookie(site: String, name: String): Boolean = runCatching {
+        val cm = CookieManager.getInstance()
+        if (WebSession.cookieValue(cm.getCookie(site), name) == null) return@runCatching false
+        val domain = site.substringAfter("://").substringBefore('/')
+        cm.setCookie(site, "$name=; Max-Age=0; Path=/")
+        cm.setCookie(site, "$name=; Max-Age=0; Domain=.$domain; Path=/")
+        cm.flush()
+        true
+    }.getOrDefault(false)
+
     /** @return true when a session was captured (the screen then closes). */
     private fun check(): Boolean {
         if (done) return true
@@ -197,7 +283,10 @@ class WebLoginActivity : ComponentActivity() {
         }
         // A new sign-in may be another account: nothing cached from the previous one is reused.
         if (service == DEEZER) { sess.put(applicationContext, "sid", null); DeezerWebClient.forget() }
-        if (service == SOUNDCLOUD) sess.put(applicationContext, "userId", null)
+        if (service == SOUNDCLOUD) {
+            sess.put(applicationContext, "userId", null)
+            SoundCloudBridge.rememberUserAgent(applicationContext, web.settings.userAgentString)
+        }
         val app = applicationContext
         sess.save(app, cookies, null)
         // Close at once: the sign-in is done. The account name needs a token or an API call, which can

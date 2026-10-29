@@ -33,6 +33,7 @@ class VerifyActivity : ComponentActivity() {
         web = WebView(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f) }
         root.addView(hint); root.addView(web)
         setContentView(root)
+        BridgeInsets.fit(root)
 
         CookieManager.getInstance().apply { setAcceptCookie(true); setAcceptThirdPartyCookies(web, true) }
         web.settings.apply { javaScriptEnabled = true; domStorageEnabled = true }
