@@ -1,8 +1,20 @@
+<p align="center"><img src="docs/icon.png" width="96" alt=""></p>
+
+<h1 align="center">Trackhop Bridge</h1>
+
+<p align="center"><b>More music services for Trackhop, without developer accounts.</b><br>
+YouTube Music, Amazon Music, Spotify and Apple Music through their own web players. Your sign-ins stay on your phone.</p>
+
 <p align="center">
-  <img src="docs/icon.png" width="128" alt="Trackhop Bridge">
+  <a href="https://github.com/xlollx/Songport-YTM-Bridge/releases/latest"><img src="https://img.shields.io/github/v/release/xlollx/Songport-YTM-Bridge?label=release" alt="Latest release"></a>
+  <a href="https://github.com/xlollx/Songport-YTM-Bridge/releases"><img src="https://img.shields.io/github/downloads/xlollx/Songport-YTM-Bridge/total" alt="Downloads"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-3ddc84" alt="Android 8.0+">
 </p>
 
-# Trackhop Bridge
+<p align="center">
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/xlollx/Songport-YTM-Bridge"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" height="64" alt="Get it on Obtainium"></a>
+</p>
 
 Optional companion app for [Trackhop](https://github.com/xlollx/Trackhop). It connects music services
 that have no open API, or whose official route is heavy for a single user, through the same web
