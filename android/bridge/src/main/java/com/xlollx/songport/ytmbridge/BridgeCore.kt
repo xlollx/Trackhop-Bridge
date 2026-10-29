@@ -98,8 +98,9 @@ object BridgeCore {
                     val pid = arg ?: return err("missing playlist id")
                     val ids = extras?.getStringArray("ids") ?: emptyArray()
                     val c = AmazonClient(ctx)
-                    ids.forEach { id -> c.addTrack(pid, id); Thread.sleep(150) }
-                    Bundle()
+                    // Tracks Amazon refused as already in the playlist: Trackhop counts them as present, not added.
+                    val duplicates = ids.filterNot { id -> c.addTrack(pid, id).also { Thread.sleep(150) } }
+                    Bundle().apply { putStringArray("duplicates", duplicates.toTypedArray()) }
                 }
                 "amazon.rename" -> err("Amazon Music: renaming is not available in the current web player")
                 "amazon.delete" -> { AmazonClient(ctx).removePlaylist(arg ?: return err("missing playlist id")); Bundle() }

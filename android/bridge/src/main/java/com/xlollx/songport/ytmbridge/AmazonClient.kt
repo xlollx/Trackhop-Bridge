@@ -421,29 +421,69 @@ class AmazonClient(private val ctx: Context) {
     /** The user's own playlists, as the "add to playlist" dialog lists them. */
     fun libraryPlaylists(): List<PlaylistDto> {
         val d = gql("AddToPlaylistModalUserPlaylists", jsonObj("firstLimit" to PLAYLISTS_LIMIT)).orThrow("playlists")
-        return d["user"]["playlists"]["edges"].arr.mapNotNull { e ->
+        val out = d["user"]["playlists"]["edges"].arr.mapNotNull { e ->
             val n = e["node"]
             val id = n["id"].str ?: return@mapNotNull null
             PlaylistDto(id, n["title"].str ?: id, n["trackCount"].long?.toInt() ?: -1)
         }
+        libraryCounts = System.currentTimeMillis() to out.filter { it.count >= 0 }.associate { it.id to it.count }
+        return out
     }
 
-    /** Tracks of a playlist, page by page; the entry cursor ("index:uuid") is what removing takes. */
+    /** The playlist's track count as the library listed it a moment ago (a sync lists it first); null when not known. */
+    private fun libraryCount(id: String): Int? = libraryCounts
+        ?.takeIf { (at, _) -> System.currentTimeMillis() - at < LIBRARY_COUNTS_MS }?.second?.get(id)
+
+    /**
+     * Tracks of a playlist, page by page; the entry cursor ("index:uuid") is what removing takes.
+     *
+     * Every entry with an id is kept, even one Amazon describes only in part (no title, as for a
+     * track it no longer offers in the user's country): up to 1.2.7 such an entry was left out, a
+     * sync took it for missing and added it on every run, and Amazon answered DUPLICATE_TRACK. When
+     * the listing still does not add up (entries without any id, GraphQL errors next to the data,
+     * a count other than the library's), the diagnostics log says so.
+     */
     fun playlistTracks(id: String): List<TrackDto> {
         val out = ArrayList<TrackDto>()
         var after: String? = null
         var pages = 0
+        var untitled = 0
+        var noId = 0
+        var declared: Int? = null
+        val errors = LinkedHashSet<String>()
         while (true) {
             val vars = jsonObj(
-                "id" to id, "firstLimit" to 100, "isAuthenticated" to true, "includeCollaborators" to false,
+                "id" to id, "firstLimit" to PAGE_SIZE, "isAuthenticated" to true, "includeCollaborators" to false,
                 "afterCursor" to after,
             )
-            val p = gql("playlistDetail", vars).orThrow("playlist")["playlist"]
+            val a = gql("playlistDetail", vars)
+            val p = a.orThrow("playlist")["playlist"]
+            errors += a.codes.ifEmpty { a.messages.map { it.take(60) } }
+            if (declared == null) declared = p["trackCount"].long?.toInt()
             val tracks = p["tracks"]
-            for (e in tracks["edges"].arr) trackOf(e["node"], e["cursor"].str)?.let { out += it }
+            val edges = tracks["edges"].arr
+            for (e in edges) {
+                val t = entryOf(e["node"], e["cursor"].str)
+                when {
+                    t == null -> noId++
+                    else -> { if (t.title.isEmpty()) untitled++; out += t }
+                }
+            }
             val info = tracks["pageInfo"]
-            after = info["endCursor"].str
-            if (info["hasNextPage"].bool != true || after == null || ++pages > 400) break
+            // A page that names no end cursor is followed from its last entry; a full page that does
+            // not say whether more follow is followed too, until a page comes back short or empty.
+            val next = info["endCursor"].str ?: edges.lastOrNull()["cursor"].str
+            val more = info["hasNextPage"].bool ?: (edges.size >= PAGE_SIZE)
+            if (!more || edges.isEmpty() || next == null || next == after || ++pages > 400) break
+            after = next
+        }
+        val expected = declared ?: libraryCount(id)
+        if (untitled > 0 || noId > 0 || errors.isNotEmpty() || (expected != null && expected != out.size)) {
+            BridgeNet.log("amazon", "playlist ${id.takeLast(8)}: ${out.size} entries listed" +
+                (expected?.let { ", the library counts $it" } ?: "") +
+                (if (untitled > 0) "; $untitled without a title (kept by id)" else "") +
+                (if (noId > 0) "; $noId without an id (left out)" else "") +
+                (if (errors.isNotEmpty()) "; errors: ${errors.joinToString().take(160)}" else ""))
         }
         return out
     }
@@ -474,17 +514,24 @@ class AmazonClient(private val ctx: Context) {
         return PlaylistDto(id, p["title"].str ?: name, 0)
     }
 
-    /** Appends one track; a track already there is not a failure (the sync only adds what is missing). */
-    fun addTrack(playlistId: String, trackId: String) {
+    /**
+     * Appends one track: true when added, false when Amazon says the playlist already holds it
+     * (DUPLICATE_TRACK). That is not a failure, but it is not an addition either: the caller tells
+     * the sync, which counts the track as present instead of added (its listing may leave it out).
+     */
+    fun addTrack(playlistId: String, trackId: String): Boolean {
+        libraryCounts = null
         val a = gql("addTrackToPlaylist", jsonObj("id" to playlistId, "trackId" to trackId, "rejectDuplicateTracks" to true))
-        if (a.codes.any { it == "DUPLICATE_TRACK" }) return
+        if (a.codes.any { it == "DUPLICATE_TRACK" }) return false
         if (a.data["appendTracks"]["id"].str == null) {
             throw BridgeException("Amazon Music did not add $trackId: ${(a.codes + a.messages).joinToString("; ").take(160)}")
         }
+        return true
     }
 
     /** Removes one entry by its cursor ("index:uuid"), as read from [playlistTracks]. */
     fun removeTrack(playlistId: String, cursor: String) {
+        libraryCounts = null
         val a = gql("removeTrackFromPlaylist", jsonObj("id" to playlistId, "cursor" to cursor))
         if (a.data["removeTracks"]["id"].str == null) {
             throw BridgeException("Amazon Music did not remove the track: ${(a.codes + a.messages).joinToString("; ").take(160)}")
@@ -498,11 +545,28 @@ class AmazonClient(private val ctx: Context) {
 
     // ------------------------------------------------------------------ parsing
 
-    /** A Track node of playlistDetail or of the search. */
-    private fun trackOf(n: JsonElement?, cursor: String?): TrackDto? {
-        if (n == null) return null
-        val id = n["id"].str ?: return null
-        val title = n["shortTitle"].str ?: n["title"].str ?: return null
+    /**
+     * One entry of playlistDetail. Usually a Track node like the search's; an entry Amazon describes
+     * only in part (no title, as for a track no longer offered in the user's country) is still in the
+     * playlist, and Amazon refuses to add it again, so it is kept with its id and an empty title: a
+     * sync finds it by id, and never matches anything to it by name. An entry of another shape, the
+     * track inside it, is read from inside. Null only when the entry carries no id at all.
+     */
+    private fun entryOf(n: JsonElement?, cursor: String?): TrackDto? {
+        if (n !is JsonObject) return null
+        trackOf(n, cursor)?.let { return it }
+        val inner = ENTRY_WRAPPERS.firstNotNullOfOrNull { k -> (n[k] as? JsonObject)?.takeIf { idOf(it) != null } }
+        return if (inner != null) trackOf(inner, cursor) ?: trackOf(inner, cursor, requireTitle = false)
+        else trackOf(n, cursor, requireTitle = false)
+    }
+
+    private fun idOf(n: JsonElement?): String? = n["id"].str ?: n["asin"].str
+
+    /** A Track node of playlistDetail or of the search; without a title only when [requireTitle] is false. */
+    private fun trackOf(n: JsonElement?, cursor: String?, requireTitle: Boolean = true): TrackDto? {
+        if (n !is JsonObject) return null
+        val id = idOf(n) ?: return null
+        val title = n["shortTitle"].str ?: n["title"].str ?: n["name"].str ?: if (requireTitle) return null else ""
         val edges = n["contributingArtists"]["edges"].arr
         val artists = (edges.filter { it["role"].str == "PRIMARY" } + edges.filter { it["role"].str != "PRIMARY" })
             .mapNotNull { it["node"]["name"].str }.distinct()
@@ -525,6 +589,13 @@ class AmazonClient(private val ctx: Context) {
         private const val FEATURE_FLAGS = "api-cache,use-ups"
         private const val SONGS_LABEL = "dmusic_find_song_results_label"
         private const val PLAYLISTS_LIMIT = 500
+        /** Entries per page of playlistDetail, as the player asks for them. */
+        private const val PAGE_SIZE = 100
+        /** Where an entry of another shape keeps its track. */
+        private val ENTRY_WRAPPERS = listOf("track", "item", "entity", "content")
+        /** Track counts of the library's playlists, by id, from the last listing: checked against a playlist's entries. */
+        @Volatile private var libraryCounts: Pair<Long, Map<String, Int>>? = null
+        private const val LIBRARY_COUNTS_MS = 5 * 60_000L
         private val JSON = "application/json".toMediaType()
         /** GraphQL error codes that mean "these credentials are not accepted". */
         private val AUTH_CODES = setOf("UNAUTHENTICATED", "UNAUTHORIZED", "FORBIDDEN", "INVALID_CSRF", "CSRF_VALIDATION_FAILED")
@@ -547,7 +618,7 @@ class AmazonClient(private val ctx: Context) {
         @Volatile private var pageModeUntil = 0L
         private val logged = java.util.concurrent.ConcurrentHashMap<String, Long>()
         private const val PAGE_MODE_MS = 30 * 60_000L
-        fun forgetConfig() { cachedConfig = null }
+        fun forgetConfig() { cachedConfig = null; libraryCounts = null }
 
         /** Regional web player domains, with the language the player sends. */
         val DOMAINS: Map<String, Region> = mapOf(

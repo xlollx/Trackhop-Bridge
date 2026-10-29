@@ -90,7 +90,10 @@ class AmazonClientContractTest {
 
     @Test fun duplicateIsNotAFailureButAnotherRefusalIs() {
         answer("""{"data":{"appendTracks":null},"errors":[{"message":"Track already in playlist","extensions":{"code":"DUPLICATE_TRACK"}}]}""", 294)
-        amazon.addTrack("PL1", "B0ASIN0001")
+        // Not a failure, and not an addition either: the caller is told.
+        assertEquals(false, amazon.addTrack("PL1", "B0ASIN0001"))
+        answer("""{"data":{"appendTracks":{"id":"PL1"}}}""")
+        assertEquals(true, amazon.addTrack("PL1", "B0ASIN0003"))
         answer("""{"data":{"appendTracks":null},"errors":[{"message":"Playlist is full","extensions":{"code":"PLAYLIST_LIMIT_EXCEEDED"}}]}""", 294)
         try { amazon.addTrack("PL1", "B0ASIN0002"); fail() } catch (e: BridgeException) { assertTrue(e.message!!.contains("PLAYLIST_LIMIT_EXCEEDED")) }
         val v = call(0).json()["variables"]
@@ -135,6 +138,86 @@ class AmazonClientContractTest {
         assertEquals("P2", ls[1].name)
         assertEquals(500L, call(0).json()["variables"]["firstLimit"].long)
         assertEquals("Ñandú {braces} \"q\"", amazon.accountName())
+    }
+
+    // ---- The "Metal & More" report (1.2.7): two tracks added again on every run, "+2" each time,
+    // the target count never growing. Amazon held them, but its listing gave them in a shape the
+    // client dropped, so the sync took them for missing; Amazon answered DUPLICATE_TRACK, and that
+    // was counted as added.
+
+    /** Entries the player's listing describes only in part, or in another shape. */
+    private val untitled = """{"__typename":"Track","id":"B0RCD00001","title":null,"shortTitle":null,"duration":null,"album":null,"contributingArtists":null}"""
+    private val wrapped = """{"__typename":"PlaylistEntry","id":"entry-77","track":{"__typename":"Track","id":"B0RCD00002","title":"Bury a Lie",
+        "contributingArtists":{"edges":[{"role":"PRIMARY","node":{"name":"Rain City Drive"}}]}}}"""
+    private val asinOnly = """{"__typename":"UnavailableTrack","asin":"B0RCD00003"}"""
+
+    private fun listing(vararg edges: Pair<String, String?>, next: String? = null, errors: String = "") =
+        """{"data":{"playlist":{"id":"PL1","title":"Metal & More","tracks":{"edges":[${edges.joinToString(",") { (cursor, node) -> """{"cursor":"$cursor","node":${node ?: "null"}}""" }}],
+        "pageInfo":{"hasNextPage":${next != null},"endCursor":${next?.let { q(it) } ?: "null"}}}}}$errors}"""
+
+    @Test fun entriesWithoutTitleOrInAnotherShapeAreListedById() {
+        val logs = ArrayList<String>()
+        BridgeNet.logSink = { tag, m -> logs += "[$tag] $m" }
+        try {
+            // The library counts 6 tracks in the playlist, as the sync reads it just before the listing.
+            answer("""{"data":{"user":{"playlists":{"edges":[{"node":{"id":"PL1","title":"Metal & More","trackCount":6}}]}}}}""")
+            amazon.libraryPlaylists()
+            answer(listing(
+                "0:u0" to node(0), "1:u1" to untitled, "2:u2" to wrapped, "3:u3" to asinOnly, "4:u4" to null, "5:u5" to node(5),
+                errors = ""","errors":[{"message":"Track not available","path":["playlist","tracks","edges",4,"node"],"extensions":{"code":"NOT_FOUND"}}]""",
+            ))
+            val ts = amazon.playlistTracks("PL1")
+            assertEquals(listOf("B0ASIN0000", "B0RCD00001", "B0RCD00002", "B0RCD00003", "B0ASIN0005"), ts.map { it.id })
+            // Untitled entries are there by id, with nothing a match by name could pick up.
+            assertEquals("", ts[1].title)
+            assertEquals("1:u1", ts[1].setVideoId)
+            assertEquals("Bury a Lie", ts[2].title)
+            assertEquals(listOf("Rain City Drive"), ts[2].artists)
+            assertEquals("2:u2", ts[2].setVideoId)
+            assertEquals("", ts[3].title)
+            // What still does not add up is in the diagnostics log.
+            val line = logs.single { it.startsWith("[amazon] playlist") }
+            assertTrue(line, line.contains("5 entries listed, the library counts 6"))
+            assertTrue(line, line.contains("2 without a title (kept by id)"))
+            assertTrue(line, line.contains("1 without an id (left out)"))
+            assertTrue(line, line.contains("NOT_FOUND"))
+        } finally { BridgeNet.logSink = null }
+    }
+
+    @Test fun aWellFormedListingThatMatchesTheLibraryLogsNothing() {
+        val logs = ArrayList<String>()
+        BridgeNet.logSink = { tag, m -> logs += "[$tag] $m" }
+        try {
+            answer("""{"data":{"user":{"playlists":{"edges":[{"node":{"id":"PL1","title":"T","trackCount":2}}]}}}}""")
+            amazon.libraryPlaylists()
+            answer(page(0..1, null))
+            assertEquals(2, amazon.playlistTracks("PL1").size)
+            assertTrue(logs.toString(), logs.none { it.startsWith("[amazon] playlist") })
+        } finally { BridgeNet.logSink = null }
+    }
+
+    @Test fun aPageWithoutEndCursorIsFollowedFromItsLastEntry() {
+        answer("""{"data":{"playlist":{"id":"PL1","tracks":{"edges":[${(0..99).joinToString(",") { """{"cursor":"$it:uuid-$it","node":${node(it)}}""" }}],
+            "pageInfo":{"hasNextPage":true,"endCursor":null}}}}}""")
+        answer(page(100..101, null))
+        val ts = amazon.playlistTracks("PL1")
+        assertEquals(102, ts.size)
+        assertEquals("99:uuid-99", call(1).json()["variables"]["afterCursor"].str)
+    }
+
+    @Test fun theBridgeSaysWhichTracksAmazonAlreadyHad() {
+        // The playlist holds B0RCD00001 and B0RCD00002 but lists them in a shape the client dropped:
+        // the sync asks to add them again, and Amazon refuses them as duplicates.
+        answer("""{"data":{"appendTracks":null},"errors":[{"message":"Track already in playlist","extensions":{"code":"DUPLICATE_TRACK"}}]}""", 294)
+        answer("""{"data":{"appendTracks":{"id":"PL1"}}}""")
+        answer("""{"data":{"appendTracks":null},"errors":[{"message":"Track already in playlist","extensions":{"code":"DUPLICATE_TRACK"}}]}""", 294)
+        val b = BridgeCore.call(app, "amazon.add", "PL1", android.os.Bundle().apply {
+            putStringArray("ids", arrayOf("B0RCD00001", "B0NEW00001", "B0RCD00002"))
+            putStringArray("titles", arrayOf("Talk to a Friend", "New", "Bury a Lie"))
+        })
+        assertEquals(null, b.getString("error"))
+        assertEquals(listOf("B0RCD00001", "B0RCD00002"), b.getStringArray("duplicates")!!.toList())
+        assertEquals(3, BridgeMock.calls.size)
     }
 
     private fun q(s: String) = kotlinx.serialization.json.JsonPrimitive(s).toString()
