@@ -91,7 +91,7 @@ class AmazonCaptureActivity : ComponentActivity() {
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "application/json"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Trackhop Bridge: Amazon Music capture")
+            putExtra(Intent.EXTRA_SUBJECT, "Trackhop: Amazon Music capture")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         startActivity(Intent.createChooser(send, getString(R.string.bridge_amazon_capture_share)))

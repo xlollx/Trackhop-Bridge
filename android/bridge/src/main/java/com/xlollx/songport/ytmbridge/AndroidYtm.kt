@@ -17,7 +17,7 @@ class AndroidYtmHost(private val ctx: Context) : YtmHost {
             YtmWeb.post(ctx, path, body, headers, credentials).let { YtmWebTransport.Answer(it.code, it.body) }
     }
     override val verification: YtmVerificationStore get() = verificationStore(ctx)
-    override val signInAgain: String = "sign in again in Trackhop Bridge"
+    override val signInAgain: String = "sign out of YouTube Music and sign in again"
     // In the app the way out is the "Verify with Google" screen, which the connector's menu offers.
     override val blockedHint: String? = null
 }
