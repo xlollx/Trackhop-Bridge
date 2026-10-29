@@ -247,7 +247,7 @@ object BridgeCore {
                     putString("account", SoundCloudBridge.session.account(ctx))
                     putInt("version", VERSION)
                 }
-                "soundcloud.disconnect" -> { SoundCloudBridge.session.clear(ctx); soundCloudCache.clear(); Bundle() }
+                "soundcloud.disconnect" -> { SoundCloudBridge.session.clear(ctx); SoundCloudBridge.forgetWebStorage(); soundCloudCache.clear(); Bundle() }
                 "soundcloud.playlists" -> ok(json.encodeToString(SoundCloudWebClient(ctx).libraryPlaylists()))
                 "soundcloud.playlistInfo" -> ok(json.encodeToString(SoundCloudWebClient(ctx).playlistInfo(arg ?: return err("missing playlist id"))))
                 "soundcloud.version" -> Bundle().apply { SoundCloudWebClient(ctx).version(arg ?: return err("missing playlist id"))?.let { putString("version", it) } }

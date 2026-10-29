@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
+import android.os.SystemClock
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -15,6 +16,11 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
+import androidx.webkit.ServiceWorkerClientCompat
+import androidx.webkit.ServiceWorkerControllerCompat
+import androidx.webkit.WebViewFeature
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 /**
@@ -22,6 +28,10 @@ import kotlin.concurrent.thread
  * service's own page; the activity polls the cookie jar of the service's domain and, as soon as the
  * session cookie is there, stores the cookies encrypted and closes. Trackhop starts it with the
  * actions declared in the manifest.
+ *
+ * SoundCloud's session is the OAuth token its web app sends, taken from what the page itself does
+ * (see [SoundCloudBridge]): the Authorization header of its API requests, else the `oauth_token`
+ * cookie of any SoundCloud host, else, once the page is signed in, its localStorage.
  */
 class WebLoginActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: android.content.Context) { super.attachBaseContext(AppLocale.wrap(newBase)) }
@@ -40,6 +50,17 @@ class WebLoginActivity : ComponentActivity() {
     private lateinit var service: String
     private lateinit var notice: android.widget.TextView
     private var seen: DataDome.Kind? = null
+
+    // SoundCloud: what the page shows of its session. The first three are written from WebView threads.
+    @Volatile private var headerFound: SoundCloudBridge.Found? = null
+    private val apiSeen = ConcurrentHashMap<String, AtomicInteger>()
+    private val schemesSeen: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private var storageFound: SoundCloudBridge.Found? = null
+    private var storageKeys: List<String>? = null
+    private var storageReadOn: String? = null
+    private var storagePending = false
+    private var lastStorageRead = 0L
+    private val storageWaiters = ArrayList<() -> Unit>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,7 +89,11 @@ class WebLoginActivity : ComponentActivity() {
         bar.addView(android.widget.Button(this).apply {
             text = getString(R.string.bridge_login_done)
             setOnClickListener {
-                if (!check()) android.widget.Toast.makeText(this@WebLoginActivity, R.string.bridge_login_not_signed_in, android.widget.Toast.LENGTH_LONG).show()
+                if (check()) return@setOnClickListener
+                // SoundCloud: a signed-in page may keep its token in localStorage only; it is read
+                // now (once the page has left the sign-in form) before saying there is no session.
+                if (service == SOUNDCLOUD && readStorage(force = true) { if (!check()) noSession() }) return@setOnClickListener
+                noSession()
             }
         })
         // Said in words when the service's bot protection refuses the sign-in: its own page can be a
@@ -108,13 +133,29 @@ class WebLoginActivity : ComponentActivity() {
             // tie this one to it: the sign-in starts as a new visitor. The account's cookies stay.
             val dropped = dropCookie(SoundCloudBridge.SITE, "datadome")
             BridgeNet.log("soundcloud", "sign-in started as the phone's WebView (${BridgeUa.describe()}; ${if (dropped) "old DataDome cookie removed" else "no DataDome cookie"})")
+            // A page with a service worker makes its API calls from there, out of the WebViewClient's
+            // sight: those are observed the same way (and also go on as they were made).
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE) &&
+                WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_SHOULD_INTERCEPT_REQUEST)) runCatching {
+                ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(object : ServiceWorkerClientCompat() {
+                    override fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? {
+                        watchSoundCloud(request)
+                        return null
+                    }
+                })
+            }
         }
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val scheme = request.url.scheme
+                // SoundCloud's mobile site offers its app ("Listen in app", banners) by intent://,
+                // a store or a deep-link address, tapped or not: the sign-in stays on this page.
+                if (service == SOUNDCLOUD && SoundCloudBridge.isAppHandoff(request.url.toString())) {
+                    BridgeNet.log("soundcloud", "sign-in: a link to the app or a store (${scheme}://${request.url.host.orEmpty()}) was kept on this page")
+                    return true
+                }
                 if (scheme == "http" || scheme == "https") return false
-                // SoundCloud's phone-sized site may try to hand over to its app by itself: only a tap does that.
-                if (scheme == "intent" && (service != SOUNDCLOUD || request.hasGesture())) {
+                if (scheme == "intent") {
                     runCatching {
                         Intent.parseUri(request.url.toString(), Intent.URI_INTENT_SCHEME).apply {
                             addCategory(Intent.CATEGORY_BROWSABLE); component = null; selector = null
@@ -129,10 +170,9 @@ class WebLoginActivity : ComponentActivity() {
                 if (service == APPLE && request.url.host?.endsWith("music.apple.com") == true) {
                     request.requestHeaders?.get("Authorization")?.let { AppleBridge.rememberDeveloperToken(applicationContext, it) }
                 }
-                // SoundCloud's web app names itself with a client id on every API call: kept for ours.
-                if (service == SOUNDCLOUD && request.url.host == "api-v2.soundcloud.com") {
-                    SoundCloudBridge.rememberClientId(applicationContext, request.url.toString())
-                }
+                // SoundCloud's web app names itself with a client id on every API call, and signed in
+                // sends the account's token: both kept for ours (see [watchSoundCloud]).
+                watchSoundCloud(request)
                 watchBotCheck(request.url.toString())
                 // Only watched: every request goes on as the page made it.
                 return null
@@ -165,8 +205,16 @@ class WebLoginActivity : ComponentActivity() {
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                     webViewClient = object : WebViewClient() {
                         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                            watchSoundCloud(request)
                             watchBotCheck(request.url.toString())
                             return null
+                        }
+                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                            if (service != SOUNDCLOUD || !SoundCloudBridge.isAppHandoff(request.url.toString())) return false
+                            // A window opened only to hand over to the app goes away; the sign-in stays.
+                            BridgeNet.log("soundcloud", "sign-in: a link to the app or a store (${request.url.scheme}://${request.url.host.orEmpty()}) was kept from leaving")
+                            if (view.url.isNullOrEmpty() || view.url == "about:blank") handler.post { if (view in popups) closePopup(view) }
+                            return true
                         }
                         override fun onPageFinished(view: WebView, url: String) { check() }
                     }
@@ -197,7 +245,12 @@ class WebLoginActivity : ComponentActivity() {
         })
         // Sign-in overlays (Apple ID) do not navigate: poll the cookie jar while the screen is open.
         handler.postDelayed(object : Runnable {
-            override fun run() { if (!done && !isFinishing) { check(); handler.postDelayed(this, 1500) } }
+            override fun run() {
+                if (done || isFinishing) return
+                // SoundCloud's last resort: the signed-in page's localStorage, read now and then.
+                if (!check() && service == SOUNDCLOUD) readStorage(force = false)
+                handler.postDelayed(this, 1500)
+            }
         }, 1500)
     }
 
@@ -225,6 +278,76 @@ class WebLoginActivity : ComponentActivity() {
         handler.post { botCheck(kind) }
     }
 
+    /**
+     * SoundCloud, called from WebView threads with every request the page (or its service worker)
+     * makes; only reads it. A request to one of SoundCloud's API hosts gives the web app's client id
+     * and, once signed in, `Authorization: OAuth <token>`: the session, as the page itself uses it.
+     */
+    private fun watchSoundCloud(request: WebResourceRequest) {
+        if (service != SOUNDCLOUD) return
+        val host = request.url.host
+        if (!SoundCloudBridge.isApiHost(host)) return
+        apiSeen.getOrPut(host!!) { AtomicInteger() }.incrementAndGet()
+        val url = request.url.toString()
+        runCatching { SoundCloudBridge.rememberClientId(applicationContext, url) }
+        val auth = request.requestHeaders?.entries?.firstOrNull { it.key.equals("Authorization", ignoreCase = true) }?.value ?: return
+        SoundCloudBridge.schemeOf(auth)?.let { schemesSeen += it }
+        val token = SoundCloudBridge.tokenOfAuthorization(auth) ?: return
+        if (headerFound?.token != token) headerFound = SoundCloudBridge.Found(token, "header:$host")
+    }
+
+    /**
+     * SoundCloud's last resort: the page's localStorage, read with one evaluateJavascript on the main
+     * frame ([SoundCloudBridge.STORAGE_SCRIPT], a read and nothing else). Only once the page has left
+     * the sign-in form ([SoundCloudBridge.looksSignedIn]) and no sign-in window is open above it, so
+     * it never runs while the person is typing into the form; nothing is ever injected at document
+     * start. [then] runs when the read is back. False when no read was started or is under way.
+     */
+    private fun readStorage(force: Boolean, then: (() -> Unit)? = null): Boolean {
+        if (done || isFinishing || popups.isNotEmpty() || !SoundCloudBridge.looksSignedIn(web.url)) return false
+        if (storagePending) { then?.let { storageWaiters += it }; return true }
+        val now = SystemClock.elapsedRealtime()
+        if (!force && now - lastStorageRead < 4_500) return false
+        lastStorageRead = now
+        storagePending = true
+        then?.let { storageWaiters += it }
+        val host = Uri.parse(web.url).host
+        web.evaluateJavascript(SoundCloudBridge.STORAGE_SCRIPT) { raw ->
+            storagePending = false
+            val waiting = storageWaiters.toList()
+            storageWaiters.clear()
+            if (done || isFinishing) return@evaluateJavascript
+            storageKeys = SoundCloudBridge.storageKeys(raw)
+            storageReadOn = host
+            SoundCloudBridge.tokenFromStorage(raw)?.let { storageFound = it }
+            if (waiting.isEmpty()) { if (storageFound != null) check() } else waiting.forEach { it() }
+        }
+        return true
+    }
+
+    /** DONE without a session: said to the person (in words that name no app), and for SoundCloud, what was tried. */
+    private fun noSession() {
+        if (service == SOUNDCLOUD) BridgeNet.log("soundcloud", noSessionReport())
+        android.widget.Toast.makeText(this, R.string.bridge_login_not_signed_in, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    /** Which sources were tried, by name only: cookie names, hosts, header schemes and localStorage keys, never a value. */
+    private fun noSessionReport(): String {
+        val cm = CookieManager.getInstance()
+        val jars = SoundCloudBridge.COOKIE_SITES.joinToString(", ") { site ->
+            val names = SoundCloudBridge.cookieNames(runCatching { cm.getCookie(site) }.getOrNull())
+            "${site.substringAfter("://")} [${names.joinToString(" ")}]"
+        }
+        val api = apiSeen.entries.sortedBy { it.key }.joinToString(", ") { "${it.key} ×${it.value.get()}" }.ifEmpty { "none" }
+        val schemes = schemesSeen.sorted().joinToString(", ").ifEmpty { "none" }
+        val page = Uri.parse(web.url ?: "").let { u -> "${u.host ?: "none"}${if (SoundCloudBridge.looksSignedIn(web.url)) "" else ", on the sign-in"}" }
+        val storage = storageKeys?.let { "read on ${storageReadOn ?: "?"}, keys [${it.joinToString(" ")}], no token" }
+            ?: "not read (the page had not left the sign-in, or a sign-in window was open)"
+        return "sign-in: DONE without a session. Tried: Authorization header: ${if (headerFound != null) "seen" else "not seen"} " +
+            "(API requests: $api; schemes: $schemes; client id seen: ${if (SoundCloudBridge.session.get(applicationContext, "clientId") != null) "yes" else "no"}); " +
+            "oauth_token cookie: none in $jars; localStorage: $storage; page: $page"
+    }
+
     private fun botCheck(kind: DataDome.Kind) {
         if (done || isFinishing || kind == seen) return
         seen = kind
@@ -238,6 +361,8 @@ class WebLoginActivity : ComponentActivity() {
         notice.text = getString(R.string.bridge_login_blocked, serviceName())
         notice.visibility = android.view.View.VISIBLE
     }
+
+    private fun serviceOrNull(): String? = if (::service.isInitialized) service else null
 
     private fun serviceName() = when (service) {
         APPLE -> "Apple Music"
@@ -260,17 +385,16 @@ class WebLoginActivity : ComponentActivity() {
     /** @return true when a session was captured (the screen then closes). */
     private fun check(): Boolean {
         if (done) return true
+        if (service == SOUNDCLOUD) return checkSoundCloud()
         val origin = when (service) {
             APPLE -> "https://music.apple.com"
             DEEZER -> DeezerBridge.ORIGIN
-            SOUNDCLOUD -> SoundCloudBridge.SITE
             else -> "https://open.spotify.com"
         }
         val cookies = CookieManager.getInstance().getCookie(origin) ?: return false
         val ok = when (service) {
             APPLE -> AppleBridge.signedIn(cookies)
             DEEZER -> DeezerBridge.signedIn(cookies)
-            SOUNDCLOUD -> SoundCloudBridge.signedIn(cookies)
             else -> SpotifyBridge.signedIn(cookies)
         }
         if (!ok) return false
@@ -278,15 +402,36 @@ class WebLoginActivity : ComponentActivity() {
         val sess = when (service) {
             APPLE -> AppleBridge.session
             DEEZER -> DeezerBridge.session
-            SOUNDCLOUD -> SoundCloudBridge.session
             else -> SpotifyBridge.session
         }
         // A new sign-in may be another account: nothing cached from the previous one is reused.
         if (service == DEEZER) { sess.put(applicationContext, "sid", null); DeezerWebClient.forget() }
-        if (service == SOUNDCLOUD) {
-            sess.put(applicationContext, "userId", null)
-            SoundCloudBridge.rememberUserAgent(applicationContext, web.settings.userAgentString)
-        }
+        signedIn(sess, cookies)
+        return true
+    }
+
+    /**
+     * SoundCloud: the token from the first source that has it ([SoundCloudBridge.pick]: the page's
+     * Authorization header, the cookie of any SoundCloud host, localStorage), kept with the client
+     * id (already kept as the page's requests went by), the sign-in's user agent and the cookies.
+     */
+    private fun checkSoundCloud(): Boolean {
+        val cm = CookieManager.getInstance()
+        val jars = SoundCloudBridge.COOKIE_SITES.associateWith { runCatching { cm.getCookie(it) }.getOrNull() }
+        val found = SoundCloudBridge.pick(headerFound, jars, storageFound) ?: return false
+        done = true
+        val app = applicationContext
+        val sess = SoundCloudBridge.session
+        // A new sign-in may be another account: nothing cached from the previous one is reused.
+        sess.put(app, "userId", null)
+        SoundCloudBridge.rememberToken(app, found)
+        SoundCloudBridge.rememberUserAgent(app, web.settings.userAgentString)
+        BridgeNet.log("soundcloud", "sign-in: session taken from ${found.source}")
+        signedIn(sess, SoundCloudBridge.mergeCookies(jars.values.toList()))
+        return true
+    }
+
+    private fun signedIn(sess: WebSession, cookies: String) {
         val app = applicationContext
         sess.save(app, cookies, null)
         // Close at once: the sign-in is done. The account name needs a token or an API call, which can
@@ -304,11 +449,16 @@ class WebLoginActivity : ComponentActivity() {
             }.getOrNull()
             if (account != null) sess.save(app, cookies, account)
         }
-        return true
     }
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        // The service-worker observer was this screen's: it goes with it.
+        if (serviceOrNull() == SOUNDCLOUD && WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_SHOULD_INTERCEPT_REQUEST)) runCatching {
+            ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(object : ServiceWorkerClientCompat() {
+                override fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? = null
+            })
+        }
         popups.forEach { runCatching { it.destroy() } }
         if (::web.isInitialized) web.destroy()
         super.onDestroy()

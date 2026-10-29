@@ -38,7 +38,7 @@ class SoundCloudWebClient(private val ctx: Context) {
     private val http = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).withHook().build()
     private val session get() = SoundCloudBridge.session
 
-    private fun token(): String? = SoundCloudBridge.oauthToken(session.cookies(ctx))
+    private fun token(): String? = SoundCloudBridge.token(ctx)
 
     // ---- the web app's client id
 
@@ -75,19 +75,31 @@ class SoundCloudWebClient(private val ctx: Context) {
      * for a client id or anything else, would only add to what it counts.
      *
      * The headers match the sign-in: its user agent and, when DataDome left one, its cookie.
+     *
+     * The calls go to api-v2, the desktop web app's interface. A token taken from the mobile site's
+     * requests (api-mobi.soundcloud.com) is SoundCloud's one OAuth token for the account and is
+     * expected to work on api-v2 as well, as the desktop site's cookie token does; should api-v2
+     * refuse it, the same call is tried once on api-mobi, which has the same paths, and when that
+     * one answers the session's calls go there from then on (both said in the diagnostics log).
      */
     private fun api(method: String, path: String, body: JsonElement? = null): JsonElement {
         var refreshed = false
+        var target = session.get(ctx, "apiHost") ?: SoundCloudBridge.API_V2
+        var switched = false
         while (true) {
-            val cid = clientId(refresh = false)
-            val url = (if (path.startsWith("http")) path else API + path).toHttpUrl().newBuilder()
+            val mobi = target == SoundCloudBridge.API_MOBI
+            val cid = (if (mobi) session.get(ctx, "clientIdMobi") else null) ?: clientId(refresh = false)
+            val given = (if (path.startsWith("http")) path else API + path).toHttpUrl()
+            val url = given.newBuilder()
+                .apply { if (given.host == SoundCloudBridge.API_V2 || given.host == SoundCloudBridge.API_MOBI) host(target) }
                 .removeAllQueryParameters("client_id").addQueryParameter("client_id", cid).build()
+            val origin = if (mobi) SoundCloudBridge.MOBILE_SITE else SITE
             val b = Request.Builder().url(url)
                 .header("Accept", "application/json, text/javascript, */*; q=0.01")
                 .header("User-Agent", SoundCloudBridge.userAgent(ctx))
-                .header("Origin", SITE).header("Referer", "$SITE/")
+                .header("Origin", origin).header("Referer", "$origin/")
             val jar = session.cookies(ctx)
-            val tok = SoundCloudBridge.oauthToken(jar)
+            val tok = token()
             if (tok != null) b.header("Authorization", "OAuth $tok")
             SoundCloudBridge.dataDomeCookie(jar)?.let { b.header("Cookie", "datadome=$it") }
             val payload = (body?.toString() ?: "").toRequestBody(JSON)
@@ -97,11 +109,19 @@ class SoundCloudWebClient(private val ctx: Context) {
                 else -> b.method(method, payload)
             }
             val (code, text) = send(b.build())
+            if (switched && code in 200..299) {
+                session.put(ctx, "apiHost", target)
+                BridgeNet.log("soundcloud", "api-v2 refused the session's token (HTTP 401) and ${SoundCloudBridge.API_MOBI} accepted it: the account's calls go there")
+            } else if (switched && code == 401) {
+                BridgeNet.log("soundcloud", "the session's token was refused by api-v2 and by ${SoundCloudBridge.API_MOBI} (HTTP 401)")
+            }
             when {
                 code in 200..299 -> return runCatching { parseJson(text) }.getOrNull() ?: JsonNull
                 code == 404 -> throw NotFound()
                 code == 403 && DataDome.kindOfBody(text) != null -> throw BridgeException(SoundCloudBridge.BLOCKED)
                 (code == 401 || code == 403) && !refreshed -> { refreshed = true; runCatching { clientId(refresh = true) } }
+                // A token seen on the mobile site's API that api-v2 does not take: tried there, once.
+                code == 401 && tok != null && !switched && !mobi && seenOnMobi() -> { switched = true; target = SoundCloudBridge.API_MOBI }
                 code == 401 -> throw BridgeException(if (tok != null) EXPIRED else "SoundCloud refused the web app's client id: it may have changed its web app")
                 code == 403 -> throw BridgeException("SoundCloud refused this ($method ${url.encodedPath}): HTTP 403")
                 code == 422 -> throw BridgeException("SoundCloud did not accept the change ($method ${url.encodedPath}): ${text.take(200)}")
@@ -110,6 +130,10 @@ class SoundCloudWebClient(private val ctx: Context) {
             }
         }
     }
+
+    /** Whether the sign-in saw the mobile site's API: its token came from there, or it named itself there with a client id. */
+    private fun seenOnMobi(): Boolean =
+        SoundCloudBridge.tokenSource(ctx)?.endsWith(SoundCloudBridge.API_MOBI) == true || session.get(ctx, "clientIdMobi") != null
 
     /** One exchange, retried once on a transport error. */
     private fun send(req: Request): Pair<Int, String> {
@@ -136,6 +160,7 @@ class SoundCloudWebClient(private val ctx: Context) {
         if (token() == null) throw BridgeException(if (session.isConnected(ctx)) EXPIRED else "not connected")
         val j = api("GET", "/me")
         val id = j["id"].long?.toString() ?: throw BridgeException(EXPIRED)
+        if (refresh) BridgeNet.log("soundcloud", "account read through ${session.get(ctx, "apiHost") ?: SoundCloudBridge.API_V2} with the token from ${SoundCloudBridge.tokenSource(ctx) ?: "the soundcloud.com cookie"}")
         session.put(ctx, "userId", id)
         return id to (j["username"].str ?: j["full_name"].str)
     }

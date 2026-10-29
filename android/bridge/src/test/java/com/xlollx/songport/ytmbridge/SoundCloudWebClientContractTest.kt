@@ -228,6 +228,79 @@ class SoundCloudWebClientContractTest {
         assertEquals(fresh, call(1).requestUrl!!.queryParameter("client_id"))
     }
 
+    // ------------------------------------------------------------------ a token from the mobile site's requests
+
+    private val headerToken = "2-294035-123-HeAdErToK"
+    private val mobiCid = "M".repeat(32)
+
+    /** A session as the sign-in keeps it when the token came from the page's own Authorization header. */
+    private fun signedInByHeader() {
+        SoundCloudBridge.session.save(app, "sc_anonymous_id=x; datadome=k~1", "scuser")
+        SoundCloudBridge.rememberToken(app, SoundCloudBridge.Found(headerToken, "header:api-mobi.soundcloud.com"))
+        SoundCloudBridge.session.put(app, "clientIdMobi", mobiCid)
+    }
+
+    @Test fun aTokenFromTheHeaderIsSentToApiV2WithoutAnyCookieToken() {
+        signedInByHeader()
+        answer(set(1001))
+        sc.tracks("1001")
+        assertEquals("api-v2.soundcloud.com", call(0).host())
+        assertEquals("OAuth $headerToken", call(0).getHeader("Authorization"))
+        assertEquals(cid, call(0).requestUrl!!.queryParameter("client_id"))
+        assertEquals("datadome=k~1", call(0).getHeader("Cookie"))
+        assertNull(SoundCloudBridge.session.get(app, "apiHost"))
+    }
+
+    @Test fun theKeptTokenWinsOverAnOlderCookie() {
+        SoundCloudBridge.rememberToken(app, SoundCloudBridge.Found(headerToken, "cookie:m.soundcloud.com"))
+        answer(set(1001))
+        sc.tracks("1001")
+        assertEquals("OAuth $headerToken", call(0).getHeader("Authorization"))
+    }
+
+    @Test fun aMobileTokenApiV2RefusesGoesToApiMobiFromThenOn() {
+        signedInByHeader()
+        answer("", 401); answer("", 401)
+        answer(set(1001))
+        sc.tracks("1001")
+        // api-v2 twice (the second with a client id read again), then the same call on api-mobi.
+        assertEquals(listOf("api-v2.soundcloud.com", "api-v2.soundcloud.com", "api-mobi.soundcloud.com"), (0..2).map { call(it).host() })
+        assertEquals("/playlists/1001", call(2).requestUrl!!.encodedPath)
+        assertEquals(mobiCid, call(2).requestUrl!!.queryParameter("client_id"))
+        assertEquals("OAuth $headerToken", call(2).getHeader("Authorization"))
+        assertEquals("https://m.soundcloud.com", call(2).getHeader("Origin"))
+        assertEquals(SoundCloudBridge.API_MOBI, SoundCloudBridge.session.get(app, "apiHost"))
+        // Kept: the next call goes there directly, its next page as well.
+        answer("""{"collection":[{"id":1001,"title":"Mine","track_count":2,"user_id":123}],"next_href":"https://api-v2.soundcloud.com/users/123/playlists_without_albums?offset=1"}""")
+        answer("""{"collection":[],"next_href":null}""")
+        answer("""{"collection":[],"next_href":null}""")
+        sc.libraryPlaylists()
+        assertEquals("api-mobi.soundcloud.com", call(3).host())
+        assertEquals("api-mobi.soundcloud.com", call(4).host())
+        assertEquals("1", call(4).requestUrl!!.queryParameter("offset"))
+    }
+
+    @Test fun refusedOnBothIsTheExpiredSession() {
+        signedInByHeader()
+        answer("", 401); answer("", 401); answer("", 401)
+        try { sc.tracks("1001"); fail() } catch (e: BridgeException) { assertEquals(SoundCloudWebClient.EXPIRED, e.message) }
+        assertEquals(3, BridgeMock.calls.size)
+        assertNull(SoundCloudBridge.session.get(app, "apiHost"))
+    }
+
+    @Test fun theMobileSitesClientIdIsKeptApart() {
+        SoundCloudBridge.rememberClientId(app, "https://api-mobi.soundcloud.com/me?client_id=$mobiCid")
+        assertEquals(mobiCid, SoundCloudBridge.session.get(app, "clientIdMobi"))
+        // The desktop one already kept stays.
+        assertEquals(cid, SoundCloudBridge.session.get(app, "clientId"))
+        SoundCloudBridge.session.put(app, "clientId", null)
+        SoundCloudBridge.rememberClientId(app, "https://api-mobi.soundcloud.com/me?client_id=$mobiCid")
+        assertEquals(mobiCid, SoundCloudBridge.session.get(app, "clientId"))
+        // A request elsewhere names nothing.
+        SoundCloudBridge.rememberClientId(app, "https://m.soundcloud.com/?client_id=$fresh")
+        assertEquals(mobiCid, SoundCloudBridge.session.get(app, "clientId"))
+    }
+
     // ------------------------------------------------------------------ writes
 
     @Test fun createIsAPrivateEmptySet() {
