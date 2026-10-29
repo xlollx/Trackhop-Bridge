@@ -30,7 +30,44 @@ class IpcContractTest {
         "spotify.playlistInfo", "spotify.tracks", "spotify.search", "spotify.track", "spotify.create", "spotify.add",
         "spotify.remove", "spotify.rename", "spotify.delete", "spotify.visibility", "spotify.reorder",
         "apple.status", "apple.disconnect", "apple.tokens",
+        "deezer.status", "deezer.disconnect", "deezer.playlists", "deezer.playlistInfo", "deezer.version", "deezer.tracks",
+        "deezer.search", "deezer.track", "deezer.create", "deezer.add", "deezer.remove", "deezer.rename", "deezer.delete",
+        "soundcloud.status", "soundcloud.disconnect", "soundcloud.playlists", "soundcloud.playlistInfo", "soundcloud.version",
+        "soundcloud.tracks", "soundcloud.search", "soundcloud.create", "soundcloud.add", "soundcloud.remove", "soundcloud.reorder",
+        "soundcloud.rename", "soundcloud.visibility", "soundcloud.delete",
     )
+
+    /** The sign-in actions Trackhop starts (its providers' LOGIN_ACTION), each exported by this app's manifest. */
+    private val loginActions = listOf("LOGIN", "AMAZON_LOGIN", "SPOTIFY_LOGIN", "APPLE_LOGIN", "DEEZER_LOGIN", "SOUNDCLOUD_LOGIN")
+        .map { "com.xlollx.songport.ytmbridge.$it" }
+
+    @Test fun everySignInActionIsExported() {
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        loginActions.forEach { a -> assertTrue("$a is declared", manifest.contains("<action android:name=\"$a\" />")) }
+        // The web sign-ins (Spotify, Apple Music, Deezer, SoundCloud) share one exported activity.
+        val web = Regex("""<activity\s+android:name="com\.xlollx\.songport\.ytmbridge\.WebLoginActivity"(.*?)</activity>""", RegexOption.DOT_MATCHES_ALL)
+            .find(manifest)?.groupValues?.get(1) ?: ""
+        assertTrue(web.contains("android:exported=\"true\""))
+        listOf("SPOTIFY_LOGIN", "APPLE_LOGIN", "DEEZER_LOGIN", "SOUNDCLOUD_LOGIN").forEach { assertTrue(it, web.contains("ytmbridge.$it")) }
+    }
+
+    /** The intents the shared sign-in screen builds use exactly the actions the manifest exports. */
+    @Test fun signInIntentsUseTheExportedActions() {
+        val ctx = RuntimeEnvironment.getApplication()
+        assertEquals("com.xlollx.songport.ytmbridge.DEEZER_LOGIN", WebLoginActivity.intent(ctx, WebLoginActivity.DEEZER).action)
+        assertEquals("com.xlollx.songport.ytmbridge.SOUNDCLOUD_LOGIN", WebLoginActivity.intent(ctx, WebLoginActivity.SOUNDCLOUD).action)
+    }
+
+    /** The new services answer their status in-process (not "unknown method"): what Trackhop's Play build checks. */
+    @Test fun newServicesAnswerStatus() {
+        val ctx = RuntimeEnvironment.getApplication()
+        for (m in listOf("deezer.status", "soundcloud.status")) {
+            val b = BridgeCore.call(ctx, m, null, null)
+            assertNull(m, b.getString("error"))
+            assertTrue(m, b.containsKey("connected"))
+            assertFalse(m, b.getBoolean("connected"))
+        }
+    }
 
     @Test fun everyMethodTrackhopCallsIsServed() {
         val core = File("../bridge/src/main/java/com/xlollx/songport/ytmbridge/BridgeCore.kt").readText()

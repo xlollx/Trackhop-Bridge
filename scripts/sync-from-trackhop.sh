@@ -21,7 +21,8 @@ for m in bridge ytm; do
 done
 
 # The one difference: messages that send the user to this app name it as it is called here.
-grep -rlZ 'Songport Bridge' "$root/android/bridge" "$root/android/ytm" | xargs -0 -r sed -i 's/Songport Bridge/Trackhop Bridge/g'
+# (grep finds nothing once Trackhop itself says "Trackhop Bridge": not an error under pipefail.)
+{ grep -rlZ 'Songport Bridge' "$root/android/bridge" "$root/android/ytm" || true; } | xargs -0 -r sed -i 's/Songport Bridge/Trackhop Bridge/g'
 
 # The last Trackhop commit that touched the two modules, the one to compare against next time.
 rev=$(git -C "$src" log -1 --format=%H -- android/bridge android/ytm)

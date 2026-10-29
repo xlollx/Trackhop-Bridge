@@ -39,4 +39,8 @@
     <string name="update_channel">Обновления</string>
     <string name="update_notification_title">Доступен Trackhop Bridge %1$s</string>
     <string name="update_notification_text">Нажмите, чтобы открыть выпуск на GitHub.</string>
+    <string name="deezer_intro">Бета. Войдите на собственной странице Deezer вместо создания приложения разработчика — Deezer больше этого не позволяет. Пароль вводится только на этой странице: это приложение его не видит и не хранит. Сохраняется только сессия (cookie), в зашифрованном виде на этом телефоне; Trackhop получает только ваши плейлисты и треки.</string>
+    <string name="deezer_connect">Войти в Deezer</string>
+    <string name="soundcloud_intro">Бета. Войдите на собственной странице SoundCloud, чтобы использовать ваши плейлисты и понравившиеся треки. Пароль вводится только на этой странице: это приложение его не видит и не хранит. Сохраняется только сессия (cookie), в зашифрованном виде на этом телефоне; Trackhop получает только ваши плейлисты и треки.</string>
+    <string name="soundcloud_connect">Войти в SoundCloud</string>
 </resources>

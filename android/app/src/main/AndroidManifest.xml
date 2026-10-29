@@ -60,7 +60,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-        <!-- Spotify and Apple Music web sessions: the user signs in on the service's own page. -->
+        <!-- Spotify, Apple Music, Deezer and SoundCloud web sessions: the user signs in on the service's own page. -->
         <activity
             android:name="com.xlollx.songport.ytmbridge.WebLoginActivity"
             android:exported="true"
@@ -69,6 +69,8 @@
             <intent-filter>
                 <action android:name="com.xlollx.songport.ytmbridge.SPOTIFY_LOGIN" />
                 <action android:name="com.xlollx.songport.ytmbridge.APPLE_LOGIN" />
+                <action android:name="com.xlollx.songport.ytmbridge.DEEZER_LOGIN" />
+                <action android:name="com.xlollx.songport.ytmbridge.SOUNDCLOUD_LOGIN" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

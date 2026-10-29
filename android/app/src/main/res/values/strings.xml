@@ -45,4 +45,10 @@
     <string name="update_channel">Updates</string>
     <string name="update_notification_title">Trackhop Bridge %1$s is available</string>
     <string name="update_notification_text">Tap to open the release on GitHub.</string>
+    <string name="deezer_title" translatable="false">Deezer</string>
+    <string name="soundcloud_title" translatable="false">SoundCloud</string>
+    <string name="deezer_intro">Beta. Sign in on Deezer\'s own page instead of creating a developer app, which Deezer no longer allows. You type your password only on that page: this app never sees or stores it. What is kept is the session (cookies), encrypted on this phone; Trackhop only receives your playlists and tracks.</string>
+    <string name="deezer_connect">Sign in to Deezer</string>
+    <string name="soundcloud_intro">Beta. Sign in on SoundCloud\'s own page to use your sets and liked tracks. You type your password only on that page: this app never sees or stores it. What is kept is the session (cookies), encrypted on this phone; Trackhop only receives your playlists and tracks.</string>
+    <string name="soundcloud_connect">Sign in to SoundCloud</string>
 </resources>

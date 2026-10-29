@@ -6,7 +6,7 @@
     <string name="bridge_amazon_capture_clear">지우기</string>
     <string name="bridge_amazon_capture_count">호출 %1$d개 캡처됨</string>
     <string name="bridge_disclaimer_title">면책 조항</string>
-    <string name="bridge_disclaimer_body">Trackhop의 웹 커넥터(YouTube Music, Amazon Music, 그리고 Spotify와 Apple Music의 웹 로그인)는 독립적인 오픈 소스 프로젝트의 일부로, Google, YouTube, Amazon, Spotify, Apple 또는 어떤 음악 서비스와도 제휴·보증·연관 관계가 없어요.\n\n이 커넥터들은 공식 API가 아니라 각 서비스의 웹 플레이어가 쓰는 것과 같은 인터페이스로 통신해요. 이는 해당 서비스의 이용 약관에 어긋나요. 언제든 작동을 멈출 수 있고, 서비스가 로그인한 계정을 제한·정지·폐쇄할 수도 있어요.\n\n이 소프트웨어는 어떤 보증도 없이 \"있는 그대로\" 제공돼요. 계속하면 전적으로 본인의 책임으로 사용하며, 계정 제한이나 데이터 손실을 포함한 어떤 결과에 대해서도 개발자가 책임을 지지 않는다는 데 동의하는 것이에요.</string>
+    <string name="bridge_disclaimer_body">Trackhop의 웹 커넥터(YouTube Music, Amazon Music, SoundCloud, 그리고 Spotify, Apple Music, Deezer의 웹 로그인)는 독립적인 오픈 소스 프로젝트의 일부로, Google, YouTube, Amazon, Spotify, Apple, Deezer, SoundCloud 또는 어떤 음악 서비스와도 제휴·보증·연관 관계가 없어요.\n\n이 커넥터들은 공식 API가 아니라 각 서비스의 웹 플레이어가 쓰는 것과 같은 인터페이스로 통신해요. 이는 해당 서비스의 이용 약관에 어긋나요. 언제든 작동을 멈출 수 있고, 서비스가 로그인한 계정을 제한·정지·폐쇄할 수도 있어요.\n\n이 소프트웨어는 어떤 보증도 없이 \"있는 그대로\" 제공돼요. 계속하면 전적으로 본인의 책임으로 사용하며, 계정 제한이나 데이터 손실을 포함한 어떤 결과에 대해서도 개발자가 책임을 지지 않는다는 데 동의하는 것이에요.</string>
     <string name="bridge_disclaimer_accept">이해했으며 동의합니다</string>
     <string name="bridge_login_hint">서비스 페이지에서 로그인하세요. 이 화면은 자동으로 닫혀요. 닫히지 않으면 완료를 누르세요.</string>
     <string name="bridge_login_finishing">거의 다 됐어요. 플레이어가 시작되는 중이니 저절로 닫힐 때까지 이 화면을 열어 두세요. 플레이어가 누가 듣는지 물으면 내 프로필을 고르세요.</string>

@@ -3,7 +3,7 @@
 <h1 align="center">Trackhop Bridge</h1>
 
 <p align="center"><b>More music services for Trackhop, without developer accounts.</b><br>
-YouTube Music, Amazon Music, Spotify and Apple Music through their own web players. Your sign-ins stay on your phone.</p>
+YouTube Music, Amazon Music, Spotify, Apple Music, Deezer and SoundCloud through their own web players. Your sign-ins stay on your phone.</p>
 
 <p align="center">
   <a href="https://github.com/xlollx/Trackhop-Bridge/releases/latest"><img src="https://img.shields.io/github/v/release/xlollx/Trackhop-Bridge?label=release" alt="Latest release"></a>
@@ -17,8 +17,8 @@ YouTube Music, Amazon Music, Spotify and Apple Music through their own web playe
 </p>
 
 Trackhop Bridge is the connector plugin for [Trackhop](https://github.com/xlollx/Trackhop): it gives
-Trackhop's Google Play version YouTube Music, Amazon Music, and Spotify and Apple Music sign-in
-without developer keys, the same web connectors the GitHub and F-Droid versions carry inside.
+Trackhop's Google Play version YouTube Music, Amazon Music, SoundCloud, and Spotify, Apple Music and
+Deezer sign-in without developer keys, the same web connectors the GitHub and F-Droid versions carry inside.
 
 **Who needs it:** only people who installed Trackhop from Google Play. Trackhop's GitHub and F-Droid
 versions already contain these connectors and do not need it: add the service in Trackhop's Accounts
@@ -40,8 +40,8 @@ the Bridge is found by Trackhop when installed; Trackhop never includes, downloa
 
 The Bridge connects music services that have no open API, or whose official route is heavy for a
 single user, through the same web interfaces their own players use. Trackhop can then read and edit
-your YouTube Music playlists and Amazon Music playlists, transfer playlists between them and its
-other services, and keep a playlist sync running, without developer accounts.
+your YouTube Music, Amazon Music, Deezer and SoundCloud playlists, transfer playlists between them and
+its other services, and keep a playlist sync running, without developer accounts.
 
 | Service | What it adds | Official route in Trackhop |
 |---------|--------------|----------------------------|
@@ -49,11 +49,16 @@ other services, and keep a playlist sync running, without developer accounts.
 | Amazon Music | playlists, search, create, add, remove, delete | none: Amazon's Web API is a closed beta for approved partners |
 | Spotify | your playlists through the web player, without registering a developer app and without Premium | OAuth with your own client ID |
 | Apple Music | sign-in without the Apple Developer Program | MusicKit with your own developer token (99 €/year) |
+| Deezer (beta, from 1.5.0) | playlists with ISRCs, favourite tracks, search, create, add, remove, rename, delete, without a developer app | OAuth with your own app ID, for those who still have one: Deezer no longer registers new apps |
+| SoundCloud (beta, from 1.5.0) | your sets and liked tracks, search, create, add, remove, reorder, rename, public/private, delete; public set links too | none: SoundCloud's API no longer takes new registrations |
+
+Deezer and SoundCloud need Trackhop 1.3.0 or newer. Both are beta: the notice below is shown again
+before their first sign-in, since it now names them.
 
 ## Read this before installing
 
 - These are **not official APIs**. Using them is against the terms of service of Google/YouTube,
-  Amazon, Spotify and Apple, which require access through the interfaces they provide.
+  Amazon, Spotify, Apple, Deezer and SoundCloud, which require access through the interfaces they provide.
 - They **can stop working at any time**: the services change their internal responses without notice.
   When that happens, syncs fail until a new Bridge release is published.
 - In the worst case a service could **restrict the account** you sign in with. Use accounts you can

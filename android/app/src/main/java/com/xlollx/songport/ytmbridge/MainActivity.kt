@@ -149,6 +149,17 @@ private fun Screen() {
             connectLabel = stringResource(R.string.apple_connect), session = AppleBridge.session,
             loginIntent = WebLoginActivity.intent(ctx, WebLoginActivity.APPLE), version = version, onChanged = { version++ },
         )
+        WebServiceCard(
+            title = stringResource(R.string.deezer_title), intro = stringResource(R.string.deezer_intro),
+            connectLabel = stringResource(R.string.deezer_connect), session = DeezerBridge.session,
+            loginIntent = WebLoginActivity.intent(ctx, WebLoginActivity.DEEZER), version = version, onChanged = { version++ },
+            onSignOut = { DeezerWebClient.forget() },
+        )
+        WebServiceCard(
+            title = stringResource(R.string.soundcloud_title), intro = stringResource(R.string.soundcloud_intro),
+            connectLabel = stringResource(R.string.soundcloud_connect), session = SoundCloudBridge.session,
+            loginIntent = WebLoginActivity.intent(ctx, WebLoginActivity.SOUNDCLOUD), version = version, onChanged = { version++ },
+        )
 
         AmazonCard(version, onChanged = { version++ })
 
@@ -188,11 +199,11 @@ private fun Screen() {
     }
 }
 
-/** A web-session service (Spotify, Apple Music): status, sign in, sign out. */
+/** A web-session service (Spotify, Apple Music, Deezer, SoundCloud): status, sign in, sign out. */
 @Composable
 private fun WebServiceCard(
     title: String, intro: String, connectLabel: String, session: WebSession, loginIntent: Intent,
-    version: Int, onChanged: () -> Unit,
+    version: Int, onChanged: () -> Unit, onSignOut: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val login = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { onChanged() }
@@ -207,7 +218,7 @@ private fun WebServiceCard(
                 style = MaterialTheme.typography.titleMedium,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (connected) OutlinedButton(onClick = { session.clear(ctx); onChanged() }) { Text(stringResource(R.string.disconnect)) }
+                if (connected) OutlinedButton(onClick = { session.clear(ctx); onSignOut(); onChanged() }) { Text(stringResource(R.string.disconnect)) }
                 else Button(onClick = { login.launch(loginIntent) }) { Text(connectLabel) }
             }
         }

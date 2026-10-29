@@ -39,4 +39,8 @@
     <string name="update_channel">업데이트</string>
     <string name="update_notification_title">Trackhop Bridge %1$s 사용 가능</string>
     <string name="update_notification_text">탭하면 GitHub에서 릴리스가 열립니다.</string>
+    <string name="deezer_intro">베타. Deezer가 더 이상 개발자 앱 생성을 허용하지 않으니, 대신 Deezer 자체 페이지에서 로그인하세요. 비밀번호는 그 페이지에만 입력하며, 이 앱은 비밀번호를 보거나 저장하지 않아요. 보관되는 건 세션(쿠키)뿐이며 이 휴대폰에 암호화되어 저장돼요. Trackhop은 플레이리스트와 트랙만 받아요.</string>
+    <string name="deezer_connect">Deezer에 로그인</string>
+    <string name="soundcloud_intro">베타. 내 플레이리스트와 좋아요한 트랙을 쓰려면 SoundCloud 자체 페이지에서 로그인하세요. 비밀번호는 그 페이지에만 입력하며, 이 앱은 비밀번호를 보거나 저장하지 않아요. 보관되는 건 세션(쿠키)뿐이며 이 휴대폰에 암호화되어 저장돼요. Trackhop은 플레이리스트와 트랙만 받아요.</string>
+    <string name="soundcloud_connect">SoundCloud에 로그인</string>
 </resources>

@@ -39,4 +39,8 @@
     <string name="update_channel">Aktualizacje</string>
     <string name="update_notification_title">Dostępny jest Trackhop Bridge %1$s</string>
     <string name="update_notification_text">Dotknij, aby otworzyć wydanie w GitHub.</string>
+    <string name="deezer_intro">Beta. Zaloguj się na stronie Deezera zamiast tworzyć aplikację deweloperską, na co Deezer już nie pozwala. Hasło wpisujesz tylko na tej stronie: ta aplikacja nigdy go nie widzi ani nie zapisuje. Przechowywana jest tylko sesja (pliki cookie), zaszyfrowana na tym telefonie; Trackhop otrzymuje tylko Twoje playlisty i utwory.</string>
+    <string name="deezer_connect">Zaloguj się do Deezera</string>
+    <string name="soundcloud_intro">Beta. Zaloguj się na stronie SoundCloud, aby korzystać ze swoich playlist i polubionych utworów. Hasło wpisujesz tylko na tej stronie: ta aplikacja nigdy go nie widzi ani nie zapisuje. Przechowywana jest tylko sesja (pliki cookie), zaszyfrowana na tym telefonie; Trackhop otrzymuje tylko Twoje playlisty i utwory.</string>
+    <string name="soundcloud_connect">Zaloguj się do SoundCloud</string>
 </resources>

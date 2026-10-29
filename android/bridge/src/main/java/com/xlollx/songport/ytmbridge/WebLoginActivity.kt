@@ -18,7 +18,7 @@ import androidx.activity.addCallback
 import kotlin.concurrent.thread
 
 /**
- * Shared sign-in screen for the web sessions (Spotify, Apple Music). The user signs in on the
+ * Shared sign-in screen for the web sessions (Spotify, Apple Music, Deezer, SoundCloud). The user signs in on the
  * service's own page; the activity polls the cookie jar of the service's domain and, as soon as the
  * session cookie is there, stores the cookies encrypted and closes. Trackhop starts it with the
  * actions declared in the manifest.
@@ -44,9 +44,12 @@ class WebLoginActivity : ComponentActivity() {
         service = when (intent.action) {
             ACTION_SPOTIFY -> SPOTIFY
             ACTION_APPLE -> APPLE
+            ACTION_DEEZER -> DEEZER
+            ACTION_SOUNDCLOUD -> SOUNDCLOUD
             else -> intent.getStringExtra(EXTRA_SERVICE) ?: SPOTIFY
         }
-        Disclaimer.require(this) { setup() }
+        // Deezer and SoundCloud came with a notice that names them: an acceptance of the older one does not cover them.
+        Disclaimer.require(this, if (service == DEEZER || service == SOUNDCLOUD) Disclaimer.VERSION else 1) { setup() }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -87,7 +90,7 @@ class WebLoginActivity : ComponentActivity() {
             // shows "Playback disabled - incompatible browser". A desktop identity avoids that page;
             // Apple's pages work with the default one.
         }
-        if (service == SPOTIFY) BridgeUa.apply(this, web)
+        if (service != APPLE) BridgeUa.apply(this, web)
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val scheme = request.url.scheme
@@ -106,6 +109,10 @@ class WebLoginActivity : ComponentActivity() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 if (service == APPLE && request.url.host?.endsWith("music.apple.com") == true) {
                     request.requestHeaders?.get("Authorization")?.let { AppleBridge.rememberDeveloperToken(applicationContext, it) }
+                }
+                // SoundCloud's web app names itself with a client id on every API call: kept for ours.
+                if (service == SOUNDCLOUD && request.url.host == "api-v2.soundcloud.com") {
+                    SoundCloudBridge.rememberClientId(applicationContext, request.url.toString())
                 }
                 return super.shouldInterceptRequest(view, request)
             }
@@ -128,7 +135,7 @@ class WebLoginActivity : ComponentActivity() {
                         javaScriptEnabled = true; domStorageEnabled = true
                         setSupportMultipleWindows(true); javaScriptCanOpenWindowsAutomatically = true
                     }
-                    if (service == SPOTIFY) BridgeUa.apply(this@WebLoginActivity, this)
+                    if (service != APPLE) BridgeUa.apply(this@WebLoginActivity, this)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView, url: String) { check() }
@@ -152,7 +159,12 @@ class WebLoginActivity : ComponentActivity() {
                 else -> { setResult(RESULT_CANCELED); finish() }
             }
         }
-        web.loadUrl(if (service == APPLE) AppleBridge.HOME else SpotifyBridge.LOGIN_URL)
+        web.loadUrl(when (service) {
+            APPLE -> AppleBridge.HOME
+            DEEZER -> DeezerBridge.LOGIN_URL
+            SOUNDCLOUD -> SoundCloudBridge.LOGIN_URL
+            else -> SpotifyBridge.LOGIN_URL
+        })
         // Sign-in overlays (Apple ID) do not navigate: poll the cookie jar while the screen is open.
         handler.postDelayed(object : Runnable {
             override fun run() { if (!done && !isFinishing) { check(); handler.postDelayed(this, 1500) } }
@@ -162,12 +174,30 @@ class WebLoginActivity : ComponentActivity() {
     /** @return true when a session was captured (the screen then closes). */
     private fun check(): Boolean {
         if (done) return true
-        val origin = if (service == APPLE) "https://music.apple.com" else "https://open.spotify.com"
+        val origin = when (service) {
+            APPLE -> "https://music.apple.com"
+            DEEZER -> DeezerBridge.ORIGIN
+            SOUNDCLOUD -> SoundCloudBridge.SITE
+            else -> "https://open.spotify.com"
+        }
         val cookies = CookieManager.getInstance().getCookie(origin) ?: return false
-        val ok = if (service == APPLE) AppleBridge.signedIn(cookies) else SpotifyBridge.signedIn(cookies)
+        val ok = when (service) {
+            APPLE -> AppleBridge.signedIn(cookies)
+            DEEZER -> DeezerBridge.signedIn(cookies)
+            SOUNDCLOUD -> SoundCloudBridge.signedIn(cookies)
+            else -> SpotifyBridge.signedIn(cookies)
+        }
         if (!ok) return false
         done = true
-        val sess = if (service == APPLE) AppleBridge.session else SpotifyBridge.session
+        val sess = when (service) {
+            APPLE -> AppleBridge.session
+            DEEZER -> DeezerBridge.session
+            SOUNDCLOUD -> SoundCloudBridge.session
+            else -> SpotifyBridge.session
+        }
+        // A new sign-in may be another account: nothing cached from the previous one is reused.
+        if (service == DEEZER) { sess.put(applicationContext, "sid", null); DeezerWebClient.forget() }
+        if (service == SOUNDCLOUD) sess.put(applicationContext, "userId", null)
         val app = applicationContext
         sess.save(app, cookies, null)
         // Close at once: the sign-in is done. The account name needs a token or an API call, which can
@@ -176,8 +206,12 @@ class WebLoginActivity : ComponentActivity() {
         finish()
         thread {
             val account = runCatching {
-                if (service == APPLE) AppleBridge.storefront(app)?.let { "Apple Music (${it.uppercase()})" }
-                else SpotifyBridge.accountInfo(app).let { (id, name) -> id?.let { sess.put(app, "userId", it) }; name }
+                when (service) {
+                    APPLE -> AppleBridge.storefront(app)?.let { "Apple Music (${it.uppercase()})" }
+                    DEEZER -> DeezerBridge.accountName(app)
+                    SOUNDCLOUD -> SoundCloudBridge.accountName(app)
+                    else -> SpotifyBridge.accountInfo(app).let { (id, name) -> id?.let { sess.put(app, "userId", it) }; name }
+                }
             }.getOrNull()
             if (account != null) sess.save(app, cookies, account)
         }
@@ -194,11 +228,20 @@ class WebLoginActivity : ComponentActivity() {
     companion object {
         const val ACTION_SPOTIFY = "com.xlollx.songport.ytmbridge.SPOTIFY_LOGIN"
         const val ACTION_APPLE = "com.xlollx.songport.ytmbridge.APPLE_LOGIN"
+        const val ACTION_DEEZER = "com.xlollx.songport.ytmbridge.DEEZER_LOGIN"
+        const val ACTION_SOUNDCLOUD = "com.xlollx.songport.ytmbridge.SOUNDCLOUD_LOGIN"
         const val EXTRA_SERVICE = "service"
         const val SPOTIFY = "spotify"
         const val APPLE = "apple"
+        const val DEEZER = "deezer"
+        const val SOUNDCLOUD = "soundcloud"
 
         fun intent(ctx: android.content.Context, service: String): Intent =
-            Intent(ctx, WebLoginActivity::class.java).setAction(if (service == APPLE) ACTION_APPLE else ACTION_SPOTIFY)
+            Intent(ctx, WebLoginActivity::class.java).setAction(when (service) {
+                APPLE -> ACTION_APPLE
+                DEEZER -> ACTION_DEEZER
+                SOUNDCLOUD -> ACTION_SOUNDCLOUD
+                else -> ACTION_SPOTIFY
+            })
     }
 }

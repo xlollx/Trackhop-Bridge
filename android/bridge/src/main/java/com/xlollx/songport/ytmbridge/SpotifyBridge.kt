@@ -171,7 +171,7 @@ object SpotifyBridge {
         main.post { runCatching { web?.stopLoading(); web?.destroy() } }
         return result ?: throw BridgeException(
             "Spotify did not hand out a token" + (error?.let { ": $it" } ?: " (timed out)") +
-                ". Open Trackhop Bridge and sign in to Spotify again."
+                ". Sign in to Spotify again."
         )
     }
 

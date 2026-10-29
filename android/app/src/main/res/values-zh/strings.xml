@@ -39,4 +39,8 @@
     <string name="update_channel">更新</string>
     <string name="update_notification_title">Trackhop Bridge %1$s 现已推出</string>
     <string name="update_notification_text">点按即可在 GitHub 上打开此版本。</string>
+    <string name="deezer_intro">测试版。Deezer 已不再允许创建开发者应用，请直接在 Deezer 自己的页面登录。密码只在该页面输入：本应用不会看到也不会保存。保存的只有会话（Cookie），加密存放在这部手机上；Trackhop 只会收到你的歌单和曲目。</string>
+    <string name="deezer_connect">登录 Deezer</string>
+    <string name="soundcloud_intro">测试版。在 SoundCloud 自己的页面登录，即可使用你的歌单和喜欢的曲目。密码只在该页面输入：本应用不会看到也不会保存。保存的只有会话（Cookie），加密存放在这部手机上；Trackhop 只会收到你的歌单和曲目。</string>
+    <string name="soundcloud_connect">登录 SoundCloud</string>
 </resources>
