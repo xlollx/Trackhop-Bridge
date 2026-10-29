@@ -22,6 +22,8 @@ interface YtmHost {
     val signInAgain: String
     /** Said after Google's block, when this place has a way out of it; null for nothing more. */
     val blockedHint: String?
+    /** The diagnostics log, where there is one: what happened, never a cookie or an id. */
+    fun log(message: String) {}
 }
 
 /** Calls made by a browser engine: Chrome's fingerprint, the browser's own cookies and headers. */

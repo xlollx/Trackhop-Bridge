@@ -20,6 +20,7 @@ class AndroidYtmHost(private val ctx: Context) : YtmHost {
     override val signInAgain: String = "sign out of YouTube Music and sign in again"
     // In the app the way out is the "Verify with Google" screen, which the connector's menu offers.
     override val blockedHint: String? = null
+    override fun log(message: String) = BridgeNet.log("ytm", message)
 }
 
 /** The client as the app has always built it, from a Context. */

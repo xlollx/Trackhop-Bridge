@@ -529,6 +529,56 @@ class AmazonClient(private val ctx: Context) {
         return true
     }
 
+    /**
+     * Removes the entries of [ids] from a playlist and says which of them it still lists afterwards.
+     *
+     * Entries go by cursor ("index:uuid", [entryIds] in the same order as [ids]); one without a
+     * cursor (an old cache, a cursor from before the GraphQL player) is looked up in the playlist.
+     * Highest index first, so no entry's position shifts before its turn.
+     *
+     * Amazon answers removeTrackFromPlaylist with the playlist's id whether or not an entry went, so
+     * that answer alone cannot tell a removal from nothing at all (the "Metal & More" report: "-1" on
+     * every run, the entry still there). The playlist is read again: an entry still listed is tried
+     * once more with the cursor the fresh listing gives it, in case the first one was stale; what
+     * still stays is logged by title with its cursor's index and its position in the listing (an
+     * index that does not match the position is a cursor Amazon does not take) and returned by id,
+     * so the sync counts it as not removed.
+     */
+    fun removeEntries(playlistId: String, ids: List<String>, entryIds: List<String>): Set<String> {
+        if (ids.isEmpty()) return emptySet()
+        val fresh = ids.indices.any { entryIds.getOrNull(it)?.contains(':') != true }
+        val byTrack = if (fresh) playlistTracks(playlistId).associate { it.id to (it.setVideoId ?: "") } else emptyMap()
+        val cursors = ids.mapIndexedNotNull { i, id -> entryIds.getOrNull(i)?.takeIf { it.contains(':') } ?: byTrack[id]?.takeIf { it.isNotEmpty() } }
+        removeByCursors(playlistId, cursors)
+        val wanted = ids.toSet()
+        var after = playlistTracks(playlistId)
+        var stayed = after.filter { it.id in wanted }
+        val retry = stayed.mapNotNull { it.setVideoId }.filter { it.contains(':') && it !in cursors }
+        if (retry.isNotEmpty()) {
+            BridgeNet.log("amazon", "playlist ${playlistId.takeLast(8)}: ${stayed.size} entries still listed after removing them; trying again with the cursors the playlist gives them now")
+            removeByCursors(playlistId, retry)
+            after = playlistTracks(playlistId)
+            stayed = after.filter { it.id in wanted }
+        }
+        if (stayed.isNotEmpty()) {
+            val used = ids.indices.associate { i -> ids[i] to cursors.getOrNull(i) }
+            BridgeNet.log("amazon", "playlist ${playlistId.takeLast(8)}: removing answered, but ${stayed.size} of ${ids.size} entries still listed: " +
+                stayed.take(10).joinToString("; ") { t ->
+                    "${describeEntry(t)} (removed with cursor index ${used[t.id]?.substringBefore(':') ?: "none"}, now cursor index ${t.setVideoId?.substringBefore(':') ?: "none"} at position ${after.indexOf(t)})"
+                })
+        }
+        return stayed.map { it.id }.toSet()
+    }
+
+    private fun removeByCursors(playlistId: String, cursors: List<String>) {
+        cursors.sortedByDescending { it.substringBefore(':').toIntOrNull() ?: 0 }
+            .forEach { removeTrack(playlistId, it); Thread.sleep(removePauseMs) }
+    }
+
+    /** An entry as the log names it: artist and title, or that it came without a title. */
+    private fun describeEntry(t: TrackDto): String =
+        if (t.title.isBlank()) "an entry listed without a title" else (t.artists.take(1) + t.title).joinToString(" – ")
+
     /** Removes one entry by its cursor ("index:uuid"), as read from [playlistTracks]. */
     fun removeTrack(playlistId: String, cursor: String) {
         libraryCounts = null
@@ -596,6 +646,8 @@ class AmazonClient(private val ctx: Context) {
         /** Track counts of the library's playlists, by id, from the last listing: checked against a playlist's entries. */
         @Volatile private var libraryCounts: Pair<Long, Map<String, Int>>? = null
         private const val LIBRARY_COUNTS_MS = 5 * 60_000L
+        /** Between two removals, as the player spaces them. */
+        @Volatile var removePauseMs = 150L
         private val JSON = "application/json".toMediaType()
         /** GraphQL error codes that mean "these credentials are not accepted". */
         private val AUTH_CODES = setOf("UNAUTHENTICATED", "UNAUTHORIZED", "FORBIDDEN", "INVALID_CSRF", "CSRF_VALIDATION_FAILED")

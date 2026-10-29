@@ -1,6 +1,7 @@
 package com.xlollx.songport.ytmbridge
 
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -525,10 +526,15 @@ class YtmClient(private val host: YtmHost) {
         checkStatus(resp)
     }
 
-    fun addTracks(playlistId: String, videoIds: List<String>) {
+    /**
+     * Adds to a playlist, or likes for [LIKED]. Returns the liked ids whose answer says they went
+     * somewhere other than Liked music (see [likeGoesElsewhere]): liked, but never listed there.
+     */
+    fun addTracks(playlistId: String, videoIds: List<String>): Set<String> {
         if (playlistId == LIKED) {
-            videoIds.forEach { call("like/like", mapOf("target" to mapOf("videoId" to it))) }
-            return
+            val elsewhere = LinkedHashSet<String>()
+            videoIds.forEach { if (likeGoesElsewhere(call("like/like", mapOf("target" to mapOf("videoId" to it))))) elsewhere += it }
+            return elsewhere
         }
         videoIds.chunked(50).forEach { chunk ->
             val resp = call(
@@ -537,6 +543,29 @@ class YtmClient(private val host: YtmHost) {
             )
             checkStatus(resp)
         }
+        return emptySet()
+    }
+
+    /**
+     * Whether the answer to a like says the item went to Liked videos rather than Liked music.
+     *
+     * As far as has been seen, like/like answers a song, a video and an already liked item alike: a
+     * success with no status and nothing about where the item went, which is why a sync towards
+     * Liked songs cannot tell, at the moment of liking, that Liked music will not list it (the
+     * engine finds out on the next run). Should an answer carry a message (a toast) that names Liked
+     * videos and not music, that is used. The fields and messages of each kind of answer are logged
+     * once (never an id), so a diagnostics report shows what YouTube says.
+     */
+    internal fun likeGoesElsewhere(resp: JsonElement): Boolean {
+        val texts = resp["actions"].findAll("text").flatMap { t -> listOfNotNull(t.str, t.runsText()) }.distinct()
+        val fields = (resp as? JsonObject)?.keys?.filter { it != "responseContext" }?.sorted().orEmpty()
+        val shape = fields.joinToString(",") + "|" + texts.joinToString("/")
+        if (likeShapes.size < 10 && likeShapes.add(shape)) {
+            host.log("like answered with ${if (fields.isEmpty()) "no fields besides responseContext" else "fields " + fields.joinToString(", ")}" +
+                if (texts.isEmpty()) "" else "; says: " + texts.joinToString(" / ").take(160))
+        }
+        val said = texts.joinToString(" ").lowercase()
+        return said.contains("liked videos") && !said.contains("music")
     }
 
     fun removeTracks(playlistId: String, items: List<RemoveItem>) {
@@ -622,6 +651,8 @@ class YtmClient(private val host: YtmHost) {
     companion object {
         /** Trackhop's id for "Liked songs"; maps to the LM playlist here. */
         const val LIKED = "__liked__"
+        /** Kinds of like answers already logged, for this process. */
+        private val likeShapes: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
         /** Signed-in calls: what a person clicking around the player would produce. */
         private val SESSION_LANE = Lane(1_500, 6_000)
         /** Anonymous searches: several a second are fine, Trackhop also runs a few in parallel. */

@@ -210,10 +210,22 @@ object SoundCloudBridge {
 
     /** Keeps the token the sign-in found and where; the API host is found again for a new token. */
     fun rememberToken(ctx: Context, found: Found) {
-        session.put(ctx, "oauthToken", found.token)
-        session.put(ctx, "tokenSource", found.source)
+        rememberRenewedToken(ctx, found)
         session.put(ctx, "apiHost", null)
     }
+
+    /**
+     * Keeps a token a renewal found ([SoundCloudRenewal]), and when: the same account's token, so the
+     * API host that took the old one stays.
+     */
+    fun rememberRenewedToken(ctx: Context, found: Found) {
+        session.put(ctx, "oauthToken", found.token)
+        session.put(ctx, "tokenSource", found.source)
+        session.put(ctx, "tokenAt", System.currentTimeMillis().toString())
+    }
+
+    /** When the kept token was obtained (epoch ms); null for a session from before this was kept. */
+    fun tokenAt(ctx: Context): Long? = session.get(ctx, "tokenAt")?.toLongOrNull()
 
     /** The account's token: the one the sign-in kept, else (a session from 1.3.1 or before) the cookie. */
     fun token(ctx: Context): String? = session.get(ctx, "oauthToken") ?: oauthToken(session.cookies(ctx))

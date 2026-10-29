@@ -53,13 +53,14 @@ object BridgeCore {
                 "add" -> {
                     val id = arg ?: return err("missing playlist id")
                     val ids = extras?.getStringArray("ids")?.toList() ?: emptyList()
-                    when (id) {
-                        ALBUMS -> client.rateAlbums(ids, extras?.getStringArray("uris")?.toList() ?: emptyList(), like = true)
-                        ARTISTS -> client.subscribeArtists(ids, on = true)
+                    // Liked, but said by YouTube to go to Liked videos: Trackhop counts them as present, not added.
+                    val elsewhere = when (id) {
+                        ALBUMS -> { client.rateAlbums(ids, extras?.getStringArray("uris")?.toList() ?: emptyList(), like = true); emptySet() }
+                        ARTISTS -> { client.subscribeArtists(ids, on = true); emptySet() }
                         else -> client.addTracks(id, ids)
                     }
                     invalidate(id)
-                    Bundle()
+                    Bundle().apply { if (elsewhere.isNotEmpty()) putStringArray("present", elsewhere.toTypedArray()) }
                 }
                 "rename" -> { client.renamePlaylist(arg ?: return err("missing playlist id"), extras?.getString("name") ?: ""); Bundle() }
                 "delete" -> { client.deletePlaylist(arg ?: return err("missing playlist id")); invalidate(arg); Bundle() }
@@ -109,16 +110,10 @@ object BridgeCore {
                     val pid = arg ?: return err("missing playlist id")
                     val ids = extras?.getStringArray("ids") ?: emptyArray()
                     val entries = extras?.getStringArray("entryIds") ?: emptyArray()
-                    val c = AmazonClient(ctx)
-                    // Entries are removed by cursor ("index:uuid"). Missing ones (an old cache, or a
-                    // cursor from before the GraphQL player) are looked up in the playlist itself.
-                    val fresh = entries.any { !it.contains(':') }
-                    val byTrack = if (fresh) c.playlistTracks(pid).associate { it.id to (it.setVideoId ?: "") } else emptyMap()
-                    val cursors = ids.mapIndexedNotNull { i, id -> entries.getOrNull(i)?.takeIf { it.contains(':') } ?: byTrack[id]?.takeIf { it.isNotEmpty() } }
-                    // Highest index first: an entry's position must not shift before it is removed.
-                    cursors.sortedByDescending { it.substringBefore(':').toIntOrNull() ?: 0 }
-                        .forEach { c.removeTrack(pid, it); Thread.sleep(150) }
-                    Bundle()
+                    // By cursor, highest index first, then checked against the playlist: the entries
+                    // Amazon still lists go back as "kept", and Trackhop counts them as not removed.
+                    val kept = AmazonClient(ctx).removeEntries(pid, ids.toList(), entries.toList())
+                    Bundle().apply { putStringArray("kept", kept.toTypedArray()) }
                 }
                 // ---- Spotify web session: Trackhop gets a short-lived Web API token, never the cookies.
                 "spotify.status" -> Bundle().apply {
@@ -247,7 +242,7 @@ object BridgeCore {
                     putString("account", SoundCloudBridge.session.account(ctx))
                     putInt("version", VERSION)
                 }
-                "soundcloud.disconnect" -> { SoundCloudBridge.session.clear(ctx); SoundCloudBridge.forgetWebStorage(); soundCloudCache.clear(); Bundle() }
+                "soundcloud.disconnect" -> { SoundCloudBridge.session.clear(ctx); SoundCloudBridge.forgetWebStorage(); SoundCloudRenewal.forget(); soundCloudCache.clear(); Bundle() }
                 "soundcloud.playlists" -> ok(json.encodeToString(SoundCloudWebClient(ctx).libraryPlaylists()))
                 "soundcloud.playlistInfo" -> ok(json.encodeToString(SoundCloudWebClient(ctx).playlistInfo(arg ?: return err("missing playlist id"))))
                 "soundcloud.version" -> Bundle().apply { SoundCloudWebClient(ctx).version(arg ?: return err("missing playlist id"))?.let { putString("version", it) } }

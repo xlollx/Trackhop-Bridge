@@ -184,6 +184,55 @@ class AmazonClientContractTest {
         } finally { BridgeNet.logSink = null }
     }
 
+    // ---- The "Metal & More" report (1.3.3): "-1" on every run, the target staying at 1141. Amazon
+    // answers removeTrackFromPlaylist with the playlist's id whether or not the entry went.
+
+    private val removed = """{"data":{"removeTracks":{"id":"PL1"}}}"""
+
+    @Test fun aRemovalIsCheckedAgainstThePlaylistAndAnEntryStillListedIsReported() {
+        AmazonClient.removePauseMs = 0
+        val logs = ArrayList<String>()
+        BridgeNet.logSink = { tag, m -> logs += "[$tag] $m" }
+        try {
+            answer(removed)
+            // Listed again with the same cursor: removing did nothing.
+            answer(listing("0:u0" to node(0), "1:u1" to node(1, "Stuck")))
+            val kept = amazon.removeEntries("PL1", listOf("B0ASIN0001"), listOf("1:u1"))
+            assertEquals(setOf("B0ASIN0001"), kept)
+            assertEquals("1:u1", call(0).json()["variables"]["cursor"].str)
+            assertEquals("playlistDetail", call(1).json()["operationName"].str)
+            assertEquals(2, BridgeMock.calls.size)
+            val line = logs.single { it.contains("still listed:") }
+            assertTrue(line, line.contains("1 of 1 entries still listed: Main 1 – Stuck (removed with cursor index 1, now cursor index 1 at position 1)"))
+            assertTrue(line, !line.contains("B0ASIN0001"))
+        } finally { BridgeNet.logSink = null }
+    }
+
+    @Test fun anEntryStillListedUnderAnotherCursorIsRemovedOnceMoreWithIt() {
+        AmazonClient.removePauseMs = 0
+        answer(removed)
+        answer(listing("0:u0" to node(0), "7:fresh" to node(1, "Stuck")))
+        answer(removed)
+        answer(listing("0:u0" to node(0)))
+        val kept = amazon.removeEntries("PL1", listOf("B0ASIN0001"), listOf("1:stale"))
+        assertTrue(kept.toString(), kept.isEmpty())
+        assertEquals("1:stale", call(0).json()["variables"]["cursor"].str)
+        assertEquals("7:fresh", call(2).json()["variables"]["cursor"].str)
+        assertEquals(4, BridgeMock.calls.size)
+    }
+
+    @Test fun aRemovalThatTookIsReadOnceAndReportsNothing() {
+        AmazonClient.removePauseMs = 0
+        answer(removed); answer(removed)
+        answer(listing("0:u0" to node(0)))
+        val kept = amazon.removeEntries("PL1", listOf("B0ASIN0002", "B0ASIN0005"), listOf("2:u2", "5:u5"))
+        assertTrue(kept.isEmpty())
+        // Highest index first.
+        assertEquals("5:u5", call(0).json()["variables"]["cursor"].str)
+        assertEquals("2:u2", call(1).json()["variables"]["cursor"].str)
+        assertEquals(3, BridgeMock.calls.size)
+    }
+
     @Test fun aWellFormedListingThatMatchesTheLibraryLogsNothing() {
         val logs = ArrayList<String>()
         BridgeNet.logSink = { tag, m -> logs += "[$tag] $m" }

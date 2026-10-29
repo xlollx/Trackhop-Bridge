@@ -48,10 +48,19 @@ class SoundCloudWebClientContractTest {
         SoundCloudBridge.session.save(app, "oauth_token=2-290000-123-AbCdEf; sc_anonymous_id=x", "scuser")
         SoundCloudBridge.session.put(app, "clientId", cid)
         SoundCloudWebClient.pauseMs = 0
+        // No WebView in a JVM test: the hidden page is played by each test (none renews by default).
+        pages.clear()
+        SoundCloudRenewal.forget()
+        SoundCloudRenewal.hiddenPage = { _, old -> pages += old; pageAnswer() }
         sc = SoundCloudWebClient(app)
     }
 
-    @After fun tearDown() { BridgeMock.stop() }
+    @After fun tearDown() { BridgeMock.stop(); SoundCloudRenewal.hiddenPage = realPage; BridgeNet.logSink = null }
+
+    private val realPage = SoundCloudRenewal.hiddenPage
+    /** The old token each hidden page was opened to replace. */
+    private val pages = ArrayList<String?>()
+    private var pageAnswer: () -> SoundCloudRenewal.Page = { SoundCloudRenewal.Page(null, null, "no page in a test") }
 
     private fun call(i: Int): RecordedRequest = BridgeMock.calls[i]
     private fun RecordedRequest.json(): JsonElement = parseJson(body.clone().readUtf8())
@@ -299,6 +308,93 @@ class SoundCloudWebClientContractTest {
         // A request elsewhere names nothing.
         SoundCloudBridge.rememberClientId(app, "https://m.soundcloud.com/?client_id=$fresh")
         assertEquals(mobiCid, SoundCloudBridge.session.get(app, "clientId"))
+    }
+
+    // ------------------------------------------------------------------ the token's hour (1.3.3 report)
+
+    private val oldToken = "2-294035-123-OldOldOld1"
+    private val newToken = "2-294035-123-NewNewNew2"
+
+    /** As the owner's session: the mobile site's cookie token, which api-v2 took until it expired. */
+    private fun signedInByMobileCookie() {
+        SoundCloudBridge.session.save(app, "oauth_token=$oldToken; datadome=k~1", "scuser")
+        SoundCloudBridge.rememberToken(app, SoundCloudBridge.Found(oldToken, "cookie:m.soundcloud.com"))
+        SoundCloudBridge.session.put(app, "clientIdMobi", mobiCid)
+    }
+
+    private fun logs(): MutableList<String> = ArrayList<String>().also { l -> BridgeNet.logSink = { tag, m -> l += "[$tag] $m" } }
+
+    @Test fun anExpiredTokenIsRenewedInAHiddenPageAndTheCallMadeOnceMore() {
+        signedInByMobileCookie()
+        val logs = logs()
+        pageAnswer = { SoundCloudRenewal.Page(SoundCloudBridge.Found(newToken, "cookie:m.soundcloud.com"), "oauth_token=$newToken; datadome=k~2", null) }
+        // The owner's log: refused on api-v2, again with a fresh client id, and on api-mobi.
+        answer("", 401); answer("", 401); answer("", 401)
+        answer(set(1001))
+        sc.tracks("1001")
+        assertEquals(listOf<String?>(oldToken), pages)
+        assertEquals(4, BridgeMock.calls.size)
+        assertEquals("api-v2.soundcloud.com", call(3).host())
+        assertEquals("OAuth $newToken", call(3).getHeader("Authorization"))
+        assertEquals("datadome=k~2", call(3).getHeader("Cookie"))
+        assertEquals(newToken, SoundCloudBridge.token(app))
+        assertTrue(System.currentTimeMillis() - SoundCloudBridge.tokenAt(app)!! < 60_000)
+        assertNull(SoundCloudBridge.session.get(app, "apiHost"))
+        assertTrue(logs.toString(), logs.any { it.startsWith("[soundcloud] renewing the session in a hidden page (the token was refused with HTTP 401 on api-mobi.soundcloud.com)") })
+        assertTrue(logs.toString(), logs.any { it.startsWith("[soundcloud] session renewed in a hidden page: new token from cookie:m.soundcloud.com") })
+        assertTrue(logs.toString(), logs.none { it.contains(oldToken) || it.contains(newToken) })
+    }
+
+    @Test fun aRenewedTokenThatIsRefusedTooIsTheExpiredSession() {
+        SoundCloudBridge.rememberToken(app, SoundCloudBridge.Found(oldToken, "cookie:soundcloud.com"))
+        pageAnswer = { SoundCloudRenewal.Page(SoundCloudBridge.Found(newToken, "header:api-v2.soundcloud.com"), null, null) }
+        answer("", 401); answer("", 401); answer("", 401)
+        try { sc.tracks("1001"); fail() } catch (e: BridgeException) { assertEquals(SoundCloudWebClient.EXPIRED, e.message) }
+        // Renewed once, the call made once more, then said as it is.
+        assertEquals(1, pages.size)
+        assertEquals(3, BridgeMock.calls.size)
+        assertEquals("OAuth $newToken", call(2).getHeader("Authorization"))
+    }
+
+    @Test fun aDataDomePuzzleInTheHiddenPageEndsInSignInAgainAndTheLogSaysWhy() {
+        SoundCloudBridge.rememberToken(app, SoundCloudBridge.Found(oldToken, "cookie:m.soundcloud.com"))
+        val logs = logs()
+        pageAnswer = { SoundCloudRenewal.Page(null, "datadome=k~3", SoundCloudRenewal.dataDomeProblem(DataDome.Kind.CAPTCHA)) }
+        answer("", 401); answer("", 401)
+        try { sc.tracks("1001"); fail() } catch (e: BridgeException) { assertEquals(SoundCloudWebClient.EXPIRED, e.message) }
+        assertEquals(oldToken, SoundCloudBridge.token(app))
+        assertTrue(logs.toString(), logs.any { it.contains("could not be renewed") && it.contains("DataDome") && it.contains("puzzle") })
+    }
+
+    @Test fun aTokenNearItsHourIsRenewedBeforeTheCallOnce() {
+        signedInByMobileCookie()
+        SoundCloudBridge.session.put(app, "tokenAt", (System.currentTimeMillis() - 55 * 60_000L).toString())
+        pageAnswer = { SoundCloudRenewal.Page(SoundCloudBridge.Found(newToken, "header:api-mobi.soundcloud.com"), null, null) }
+        answer(set(1001)); answer(set(1001))
+        sc.tracks("1001")
+        sc.tracks("1002")
+        assertEquals(1, pages.size)
+        assertEquals("OAuth $newToken", call(0).getHeader("Authorization"))
+        assertEquals("OAuth $newToken", call(1).getHeader("Authorization"))
+    }
+
+    @Test fun aTokenOfUnknownAgeIsNotRenewedAhead() {
+        // A session from before the token's time was kept: nothing to go by.
+        answer(set(1001))
+        sc.tracks("1001")
+        assertTrue(pages.isEmpty())
+        assertNull(SoundCloudBridge.tokenAt(app))
+    }
+
+    @Test fun aRenewalTakesOnlyATokenOtherThanTheOldOne() {
+        val jar = mapOf(SoundCloudBridge.SITE to "oauth_token=$oldToken", SoundCloudBridge.MOBILE_SITE to "oauth_token=$newToken", "https://secure.soundcloud.com" to null)
+        assertEquals(newToken, SoundCloudRenewal.newToken(null, jar, oldToken)?.token)
+        assertEquals("cookie:m.soundcloud.com", SoundCloudRenewal.newToken(null, jar, oldToken)?.source)
+        assertEquals("header:api-mobi.soundcloud.com", SoundCloudRenewal.newToken(SoundCloudBridge.Found("2-1-2-HeAdEr3", "header:api-mobi.soundcloud.com"), jar, oldToken)?.source)
+        assertEquals(newToken, SoundCloudRenewal.newToken(SoundCloudBridge.Found(oldToken, "header:api-mobi.soundcloud.com"), jar, oldToken)?.token)
+        assertNull(SoundCloudRenewal.newToken(SoundCloudBridge.Found(oldToken, "header:x"), mapOf(SoundCloudBridge.SITE to "oauth_token=$oldToken"), oldToken))
+        assertNull(SoundCloudRenewal.dataDomeProblem(DataDome.Kind.CHECK))
+        assertTrue(SoundCloudRenewal.dataDomeProblem(DataDome.Kind.BLOCKED)!!.contains("blocked"))
     }
 
     // ------------------------------------------------------------------ writes

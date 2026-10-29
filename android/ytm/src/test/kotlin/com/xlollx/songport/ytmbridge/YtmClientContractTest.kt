@@ -170,5 +170,17 @@ class YtmClientContractTest {
         assertEquals(2, calls.size)
     }
 
+    @Test fun likesAreOneCallEachAndOnlyAnAnswerNamingLikedVideosIsReportedAsElsewhere() {
+        // As YouTube answers a like as far as has been seen: nothing but the response context.
+        answer("""{"responseContext":{"visitorData":"x"}}""")
+        // A toast that says where the item went: Liked videos, not Liked music.
+        answer("""{"responseContext":{},"actions":[{"addToToastAction":{"item":{"notificationTextRenderer":{"successResponseText":{"runs":[{"text":"Added to Liked videos"}]}}}}}]}""")
+        answer("""{"responseContext":{},"actions":[{"addToToastAction":{"item":{"notificationTextRenderer":{"successResponseText":{"runs":[{"text":"Saved to your Liked music"}]}}}}}]}""")
+        val elsewhere = client.addTracks(YtmClient.LIKED, listOf("song1", "video2", "song3"))
+        assertEquals(setOf("video2"), elsewhere)
+        assertEquals((0..2).map { "/youtubei/v1/like/like" }, (0..2).map { take(it).requestUrl!!.encodedPath })
+        assertEquals("video2", take(1).json()["target"]["videoId"].str)
+    }
+
     private fun q(s: String) = kotlinx.serialization.json.JsonPrimitive(s).toString()
 }

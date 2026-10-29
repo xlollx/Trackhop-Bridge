@@ -81,11 +81,19 @@ class SoundCloudWebClient(private val ctx: Context) {
      * expected to work on api-v2 as well, as the desktop site's cookie token does; should api-v2
      * refuse it, the same call is tried once on api-mobi, which has the same paths, and when that
      * one answers the session's calls go there from then on (both said in the diagnostics log).
+     *
+     * The token itself lasts about an hour (the mobile site's `oauth_token`). A token older than
+     * about 50 minutes is renewed before the call, and a token still refused after all of the above
+     * is renewed then: SoundCloud's mobile site, opened in a hidden page, renews its own session
+     * ([SoundCloudRenewal]), and the call is made once more with the new token. Only when that fails
+     * is the session over ([EXPIRED]).
      */
     private fun api(method: String, path: String, body: JsonElement? = null): JsonElement {
+        SoundCloudRenewal.renewIfOld(ctx)
         var refreshed = false
         var target = session.get(ctx, "apiHost") ?: SoundCloudBridge.API_V2
         var switched = false
+        var renewed = false
         while (true) {
             val mobi = target == SoundCloudBridge.API_MOBI
             val cid = (if (mobi) session.get(ctx, "clientIdMobi") else null) ?: clientId(refresh = false)
@@ -121,7 +129,14 @@ class SoundCloudWebClient(private val ctx: Context) {
                 code == 403 && DataDome.kindOfBody(text) != null -> throw BridgeException(SoundCloudBridge.BLOCKED)
                 (code == 401 || code == 403) && !refreshed -> { refreshed = true; runCatching { clientId(refresh = true) } }
                 // A token seen on the mobile site's API that api-v2 does not take: tried there, once.
-                code == 401 && tok != null && !switched && !mobi && seenOnMobi() -> { switched = true; target = SoundCloudBridge.API_MOBI }
+                code == 401 && tok != null && !switched && !renewed && !mobi && seenOnMobi() -> { switched = true; target = SoundCloudBridge.API_MOBI }
+                // Refused everywhere: the token has expired. The site renews it, and the call is made once more.
+                code == 401 && tok != null && !renewed -> {
+                    renewed = true
+                    if (!SoundCloudRenewal.renew(ctx, tok, "the token was refused with HTTP 401 on ${url.host}")) throw BridgeException(EXPIRED)
+                    switched = false
+                    target = session.get(ctx, "apiHost") ?: SoundCloudBridge.API_V2
+                }
                 code == 401 -> throw BridgeException(if (tok != null) EXPIRED else "SoundCloud refused the web app's client id: it may have changed its web app")
                 code == 403 -> throw BridgeException("SoundCloud refused this ($method ${url.encodedPath}): HTTP 403")
                 code == 422 -> throw BridgeException("SoundCloud did not accept the change ($method ${url.encodedPath}): ${text.take(200)}")
