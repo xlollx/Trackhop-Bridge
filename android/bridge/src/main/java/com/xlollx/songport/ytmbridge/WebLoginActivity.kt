@@ -69,10 +69,12 @@ class WebLoginActivity : ComponentActivity() {
             ACTION_APPLE -> APPLE
             ACTION_DEEZER -> DEEZER
             ACTION_SOUNDCLOUD -> SOUNDCLOUD
+            ACTION_LIVEONE -> LIVEONE
+            ACTION_ANGHAMI -> ANGHAMI
             else -> intent.getStringExtra(EXTRA_SERVICE) ?: SPOTIFY
         }
         // Deezer and SoundCloud came with a notice that names them: an acceptance of the older one does not cover them.
-        Disclaimer.require(this, if (service == DEEZER || service == SOUNDCLOUD) Disclaimer.VERSION else 1) { setup() }
+        Disclaimer.require(this, if (service == DEEZER || service == SOUNDCLOUD || service == LIVEONE || service == ANGHAMI) Disclaimer.VERSION else 1) { setup() }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -85,6 +87,12 @@ class WebLoginActivity : ComponentActivity() {
             text = getString(R.string.bridge_login_hint)
             textSize = 12f
             layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        // LiveOne: where the in-app sign-in cannot finish (Google may refuse an embedded browser), the
+        // player's `slackerUser` entry copied from a desktop browser works the same.
+        if (service == LIVEONE || service == ANGHAMI) bar.addView(android.widget.Button(this).apply {
+            text = getString(android.R.string.paste)
+            setOnClickListener { if (service == ANGHAMI) pasteAnghami() else pasteLiveOne() }
         })
         bar.addView(android.widget.Button(this).apply {
             text = getString(R.string.bridge_login_done)
@@ -173,6 +181,7 @@ class WebLoginActivity : ComponentActivity() {
                 // SoundCloud's web app names itself with a client id on every API call, and signed in
                 // sends the account's token: both kept for ours (see [watchSoundCloud]).
                 watchSoundCloud(request)
+                watchAnghami(request.url.toString())
                 watchBotCheck(request.url.toString())
                 // Only watched: every request goes on as the page made it.
                 return null
@@ -241,6 +250,8 @@ class WebLoginActivity : ComponentActivity() {
             APPLE -> AppleBridge.HOME
             DEEZER -> DeezerBridge.LOGIN_URL
             SOUNDCLOUD -> SoundCloudBridge.LOGIN_URL
+            LIVEONE -> LiveOneBridge.LOGIN_URL
+            ANGHAMI -> AnghamiWebClient.LOGIN_URL
             else -> SpotifyBridge.LOGIN_URL
         })
         // Sign-in overlays (Apple ID) do not navigate: poll the cookie jar while the screen is open.
@@ -368,6 +379,8 @@ class WebLoginActivity : ComponentActivity() {
         APPLE -> "Apple Music"
         DEEZER -> "Deezer"
         SOUNDCLOUD -> "SoundCloud"
+        LIVEONE -> "LiveOne"
+        ANGHAMI -> "Anghami"
         else -> "Spotify"
     }
 
@@ -386,6 +399,8 @@ class WebLoginActivity : ComponentActivity() {
     private fun check(): Boolean {
         if (done) return true
         if (service == SOUNDCLOUD) return checkSoundCloud()
+        if (service == LIVEONE) return checkLiveOne()
+        if (service == ANGHAMI) return false
         val origin = when (service) {
             APPLE -> "https://music.apple.com"
             DEEZER -> DeezerBridge.ORIGIN
@@ -408,6 +423,133 @@ class WebLoginActivity : ComponentActivity() {
         if (service == DEEZER) { sess.put(applicationContext, "sid", null); DeezerWebClient.forget() }
         signedIn(sess, cookies)
         return true
+    }
+
+    /**
+     * LiveOne: once the page is back on www.liveone.com, the player keeps its session in local
+     * storage (`slackerUser`, with the refresh token). Read asynchronously; the screen closes when it
+     * holds a usable session. False until then.
+     */
+    private var liveOneReading = false
+    /** The last session tried and refused: not tried again while the page still holds it. */
+    private var liveOneRefused: String? = null
+    private fun checkLiveOne(): Boolean {
+        if (liveOneReading || !::web.isInitialized) return false
+        val uri = runCatching { android.net.Uri.parse(web.url ?: "") }.getOrNull() ?: return false
+        // After the sign-in LiveOne passes through /helper/onAuthResponse.jsp, before the player
+        // exchanges the sign-in for its tokens: the storage there still holds the earlier (visitor) session.
+        if (uri.host != "www.liveone.com" || uri.path.orEmpty().startsWith("/helper/")) return false
+        liveOneReading = true
+        web.evaluateJavascript(LiveOneBridge.STORAGE_SCRIPT) { raw ->
+            // evaluateJavascript answers with a JSON string literal.
+            val value = runCatching { parseJson(raw ?: "").str }.getOrNull()
+            val token = value?.let { LiveOneWebClient.tokenIn(it) }
+            if (done || isFinishing || !LiveOneBridge.usable(value) || token == liveOneRefused) { liveOneReading = false; return@evaluateJavascript }
+            // Tried before the screen closes: a session LiveOne refuses (a visitor's, one already
+            // renewed by the page) is not kept, and the page is read again a moment later.
+            verifyLiveOne(value!!, token!!)
+        }
+        return false
+    }
+
+    private fun verifyLiveOne(value: String, token: String) {
+        val app = applicationContext
+        thread {
+            val why = LiveOneBridge.keep(app, value) ?: runCatching { LiveOneWebClient(app).apply { wsToken(renew = true); presets() }; null }
+                .getOrElse { it.message ?: it.javaClass.simpleName }
+            handler.post {
+                liveOneReading = false
+                if (done || isFinishing) return@post
+                if (why == null) { finishLiveOne(); return@post }
+                liveOneRefused = token
+                LiveOneBridge.session.clear(app)
+                BridgeNet.log("liveone", "sign-in: the page's session was refused ($why); waiting for the page to renew it")
+            }
+        }
+    }
+
+    private fun finishLiveOne() {
+        done = true
+        BridgeNet.log("liveone", "sign-in: session kept")
+        setResult(RESULT_OK)
+        finish()
+    }
+
+    /** LiveOne: the session pasted from a desktop browser (its `slackerUser` entry). */
+    private fun pasteLiveOne() {
+        val cm = getSystemService(android.content.ClipboardManager::class.java)
+        val text = runCatching { cm?.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull().orEmpty()
+        if (!LiveOneBridge.usable(text)) {
+            val why = LiveOneWebClient.tokenIn(text)?.let { LiveOneWebClient.problemWith(it) } ?: "no LiveOne session in the clipboard"
+            android.widget.Toast.makeText(this, "LiveOne: $why", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        keepLiveOne(text)
+    }
+
+    /**
+     * Anghami: once signed in, the player names its session (sid) on every request to its gateway.
+     * The first one seen is tried (reading the playlists) before the screen closes; one Anghami
+     * refuses is not tried again.
+     */
+    @Volatile private var anghamiTrying = false
+    private var anghamiRefused: String? = null
+    private fun watchAnghami(url: String) {
+        if (service != ANGHAMI || done || anghamiTrying) return
+        val (sid, fingerprint) = AnghamiBridge.fromRequest(url) ?: return
+        if (sid == anghamiRefused) return
+        anghamiTrying = true
+        handler.post { keepAnghami(sid, fingerprint, fromPage = true) }
+    }
+
+    private fun pasteAnghami() {
+        val cm = getSystemService(android.content.ClipboardManager::class.java)
+        val text = runCatching { cm?.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull().orEmpty()
+        // A whole request address copied from the developer tools carries the fingerprint too.
+        val (sid, fingerprint) = AnghamiWebClient.sessionIn(text) ?: (null to null)
+        if (sid == null) {
+            android.widget.Toast.makeText(this, "Anghami: no session in the clipboard", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        keepAnghami(sid, fingerprint, fromPage = false)
+    }
+
+    private fun keepAnghami(sid: String, fingerprint: String?, fromPage: Boolean) {
+        if (done) return
+        val app = applicationContext
+        thread {
+            val why = AnghamiBridge.keep(app, sid, fingerprint) ?: runCatching { AnghamiWebClient(app).playlists(); null }
+                .getOrElse { it.message ?: it.javaClass.simpleName }
+            handler.post {
+                anghamiTrying = false
+                if (done || isFinishing) return@post
+                if (why == null) {
+                    done = true
+                    BridgeNet.log("anghami", "sign-in: session kept")
+                    setResult(RESULT_OK)
+                    finish()
+                    return@post
+                }
+                AnghamiBridge.session.clear(app)
+                if (fromPage) { anghamiRefused = sid; BridgeNet.log("anghami", "sign-in: the page's session was refused ($why)") }
+                else android.widget.Toast.makeText(this, "Anghami: $why", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun keepLiveOne(value: String) {
+        if (done) return
+        val app = applicationContext
+        thread {
+            val why = LiveOneBridge.keep(app, value) ?: runCatching { LiveOneWebClient(app).apply { wsToken(renew = true); presets() }; null }
+                .getOrElse { it.message ?: it.javaClass.simpleName }
+            handler.post {
+                if (done || isFinishing) return@post
+                if (why == null) return@post finishLiveOne()
+                LiveOneBridge.session.clear(app)
+                android.widget.Toast.makeText(this, "LiveOne: $why", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     /**
@@ -469,17 +611,23 @@ class WebLoginActivity : ComponentActivity() {
         const val ACTION_APPLE = "com.xlollx.songport.ytmbridge.APPLE_LOGIN"
         const val ACTION_DEEZER = "com.xlollx.songport.ytmbridge.DEEZER_LOGIN"
         const val ACTION_SOUNDCLOUD = "com.xlollx.songport.ytmbridge.SOUNDCLOUD_LOGIN"
+        const val ACTION_LIVEONE = "com.xlollx.songport.ytmbridge.LIVEONE_LOGIN"
+        const val ACTION_ANGHAMI = "com.xlollx.songport.ytmbridge.ANGHAMI_LOGIN"
         const val EXTRA_SERVICE = "service"
         const val SPOTIFY = "spotify"
         const val APPLE = "apple"
         const val DEEZER = "deezer"
         const val SOUNDCLOUD = "soundcloud"
+        const val LIVEONE = "liveone"
+        const val ANGHAMI = "anghami"
 
         fun intent(ctx: android.content.Context, service: String): Intent =
             Intent(ctx, WebLoginActivity::class.java).setAction(when (service) {
                 APPLE -> ACTION_APPLE
                 DEEZER -> ACTION_DEEZER
                 SOUNDCLOUD -> ACTION_SOUNDCLOUD
+                LIVEONE -> ACTION_LIVEONE
+                ANGHAMI -> ACTION_ANGHAMI
                 else -> ACTION_SPOTIFY
             })
     }

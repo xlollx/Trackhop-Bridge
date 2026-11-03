@@ -1,7 +1,5 @@
 package com.xlollx.songport.ytmbridge
 
-import android.content.Context
-import android.webkit.CookieManager
 import com.xlollx.songport.ytmbridge.BridgeNet.withHook
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -26,26 +24,25 @@ import java.util.concurrent.TimeUnit
  *
  * Catalogue search goes to the public API, `api.deezer.com`, which needs no account at all: the
  * same request anyone's browser makes, and it gives the ISRC of a track looked up by ISRC.
+ *
+ * No Android here: the server build (server/build.gradle) compiles this file as it is, with its own
+ * [WebHost] (pasted cookies). The app's is [DeezerBridge.host].
  */
-class DeezerWebClient(private val ctx: Context) {
+class DeezerWebClient(private val host: WebHost) {
 
     class User(val id: String, val name: String?, val token: String, val lovedId: String?)
 
     private val http = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).withHook().build()
-    private val session get() = DeezerBridge.session
-
     // ---- session
 
     /**
-     * The session's cookies: the WebView's jar while it still holds the sign-in, the copy saved at
-     * sign-in otherwise, with the gateway's own `sid` (set by its answers to this client) on top, so
-     * the token and the session it was issued to travel together.
+     * The session's cookies (in the app the WebView's jar while it still holds the sign-in, see
+     * [DeezerBridge.host]), with the gateway's own `sid` (set by its answers to this client) on top,
+     * so the token and the session it was issued to travel together.
      */
     private fun cookies(): String {
-        val stored = session.cookies(ctx) ?: throw BridgeException("not connected")
-        val live = runCatching { CookieManager.getInstance().getCookie(DeezerBridge.ORIGIN) }.getOrNull()
-        val base = if (DeezerBridge.signedIn(live)) live!! else stored
-        return session.get(ctx, "sid")?.let { withCookie(base, "sid", it) } ?: base
+        val base = host.cookies() ?: throw BridgeException("not connected")
+        return host.get("sid")?.let { withCookie(base, "sid", it) } ?: base
     }
 
     /** Who is signed in, with the gateway token. Cached ten minutes; a refused token fetches it again. */
@@ -70,15 +67,15 @@ class DeezerWebClient(private val ctx: Context) {
             .addQueryParameter("api_version", "1.0").addQueryParameter("api_token", token).build()
         val req = Request.Builder().url(url).post(args.toString().toRequestBody(JSON))
             .header("Cookie", cookies())
-            .header("User-Agent", BridgeUa.desktop(ctx))
+            .header("User-Agent", host.userAgent)
             .header("Accept", "*/*").header("Accept-Language", "en-US,en;q=0.9")
             .header("Content-Type", "application/json")
-            .header("Origin", DeezerBridge.ORIGIN).header("Referer", "${DeezerBridge.ORIGIN}/")
+            .header("Origin", ORIGIN).header("Referer", "$ORIGIN/")
             .build()
         val resp = send(req)
         resp.setCookies.forEach { c ->
             val pair = c.substringBefore(';')
-            if (pair.substringBefore('=').trim() == "sid") pair.substringAfter('=', "").trim().takeIf { it.isNotEmpty() }?.let { session.put(ctx, "sid", it) }
+            if (pair.substringBefore('=').trim() == "sid") pair.substringAfter('=', "").trim().takeIf { it.isNotEmpty() }?.let { host.put("sid", it) }
         }
         if (resp.code == 401 || resp.code == 403) throw BridgeException(EXPIRED)
         if (resp.code == 429) throw BridgeException("Deezer asks to slow down (429): try again in a few minutes")
@@ -203,7 +200,7 @@ class DeezerWebClient(private val ctx: Context) {
     private fun catalog(url: String): JsonElement? {
         var attempt = 0
         while (true) {
-            val req = Request.Builder().url(url).header("Accept", "application/json").header("User-Agent", BridgeUa.desktop(ctx)).build()
+            val req = Request.Builder().url(url).header("Accept", "application/json").header("User-Agent", host.userAgent).build()
             val resp = send(req)
             if (resp.code !in 200..299) throw BridgeException("Deezer catalogue: HTTP ${resp.code}")
             val j = parseJson(resp.text)
@@ -304,6 +301,7 @@ class DeezerWebClient(private val ctx: Context) {
     private fun keys(e: JsonElement?) = (e as? JsonObject)?.keys?.joinToString(",") ?: e?.javaClass?.simpleName ?: "null"
 
     companion object {
+        const val ORIGIN = "https://www.deezer.com"
         const val GW = "https://www.deezer.com/ajax/gw-light.php"
         const val API = "https://api.deezer.com"
         const val LIKED = "__liked__"

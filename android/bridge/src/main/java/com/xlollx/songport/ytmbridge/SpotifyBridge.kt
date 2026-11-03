@@ -66,6 +66,17 @@ object SpotifyBridge {
         return t
     }
 
+    /** The app's side of [SpotifyWebClient]: the WebView sign-in in [session], the token the player hands out. */
+    fun host(ctx: Context): SpotifyWebClient.Host = object : SpotifyWebClient.Host {
+        override fun cookies(): String? = session.cookies(ctx)
+        override fun account(): String? = session.account(ctx)
+        override fun get(key: String): String? = session.get(ctx, key)
+        override fun put(key: String, value: String?) = session.put(ctx, key, value)
+        override val userAgent: String get() = BridgeUa.desktop(ctx)
+        override fun bearer(): String = token(ctx).value
+        override fun bearerRefused() = invalidateToken()
+    }
+
     /** Username and display name, from the account page (the Web API refuses this token since December 2025). */
     fun accountInfo(ctx: Context): Pair<String?, String?> = SpotifyWebClient(ctx.applicationContext).profile()
 
@@ -221,3 +232,6 @@ object SpotifyBridge {
         })();
     """.trimIndent()
 }
+
+/** The client as the app has always built it, from a Context. */
+fun SpotifyWebClient(ctx: Context): SpotifyWebClient = SpotifyWebClient(SpotifyBridge.host(ctx))

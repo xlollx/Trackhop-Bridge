@@ -1,6 +1,7 @@
 package com.xlollx.songport.ytmbridge
 
 import android.content.Context
+import android.webkit.CookieManager
 
 /**
  * Deezer through the web player's session, for accounts that cannot use the official API: Deezer
@@ -12,12 +13,29 @@ import android.content.Context
  */
 object DeezerBridge {
     val session = WebSession("deezer", listOf("www.deezer.com", "deezer.com", "account.deezer.com", "connect.deezer.com"))
-    const val ORIGIN = "https://www.deezer.com"
+    const val ORIGIN = DeezerWebClient.ORIGIN
     const val LOGIN_URL = "https://www.deezer.com/login"
 
     /** `arl` is the long-lived cookie of a signed-in browser; without it the gateway answers as a visitor. */
     fun signedIn(cookies: String?): Boolean = WebSession.cookieValue(cookies, "arl") != null
 
+    /** The app's side of [DeezerWebClient]: the WebView sign-in in [session]. */
+    fun host(ctx: Context): WebHost = object : WebHost {
+        /** The WebView's jar while it still holds the sign-in, the copy saved at sign-in otherwise. */
+        override fun cookies(): String? {
+            val stored = session.cookies(ctx) ?: return null
+            val live = runCatching { CookieManager.getInstance().getCookie(ORIGIN) }.getOrNull()
+            return if (signedIn(live)) live!! else stored
+        }
+        override fun account(): String? = session.account(ctx)
+        override fun get(key: String): String? = session.get(ctx, key)
+        override fun put(key: String, value: String?) = session.put(ctx, key, value)
+        override val userAgent: String get() = BridgeUa.desktop(ctx)
+    }
+
     /** The account's display name, read once after sign-in. Blocking; never on the main thread. */
     fun accountName(ctx: Context): String? = DeezerWebClient(ctx.applicationContext).user(refresh = true).name
 }
+
+/** The client as the app has always built it, from a Context. */
+fun DeezerWebClient(ctx: Context): DeezerWebClient = DeezerWebClient(DeezerBridge.host(ctx))

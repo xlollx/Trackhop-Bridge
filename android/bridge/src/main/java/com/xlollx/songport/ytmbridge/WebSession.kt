@@ -58,7 +58,6 @@ class WebSession(private val name: String, private val domains: List<String>) {
     }
 
     companion object {
-        fun cookieValue(cookies: String?, name: String): String? = cookies?.split(';')
-            ?.map { it.trim() }?.firstOrNull { it.startsWith("$name=") }?.substringAfter('=')?.takeIf { it.isNotEmpty() }
+        fun cookieValue(cookies: String?, name: String): String? = WebHost.cookieValue(cookies, name)
     }
 }
