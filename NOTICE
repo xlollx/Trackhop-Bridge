@@ -1,0 +1,25 @@
+Trackhop Bridge
+Copyright (C) 2026 xlollx and contributors
+https://github.com/xlollx/Trackhop-Bridge
+
+Trackhop Bridge is free software under the GNU Affero General Public License, version 3 only
+(AGPL-3.0-only), see LICENSE. It is a plugin of Trackhop (https://github.com/xlollx/Trackhop).
+
+Additional terms under section 7 of the license
+------------------------------------------------
+
+1. Author attribution (section 7(b)). Every copy or modified version, in source or object form,
+   must keep this NOTICE and the line
+
+       Trackhop Bridge by xlollx · AGPL-3.0 · github.com/xlollx/Trackhop-Bridge
+
+   in its documentation and wherever the program links to its source code. A modified version
+   may show it as "Based on Trackhop Bridge by xlollx" with the same link, and must also state
+   that it was modified and by whom (section 5(a) of the license).
+
+2. Names (section 7(c) and 7(e)). The names "Trackhop", "Trackhop Bridge" (and "Songport", the
+   former name) are not licensed: they identify this project's official releases. A modified
+   version that is distributed must use a name of its own, and no modified version may present
+   itself as an official Trackhop release.
+
+These terms apply to the releases after 1.5.3; earlier releases remain under GPL-3.0-only.

@@ -8,7 +8,7 @@ YouTube Music, Amazon Music, Spotify, Apple Music, Deezer and SoundCloud through
 <p align="center">
   <a href="https://github.com/xlollx/Trackhop-Bridge/releases/latest"><img src="https://img.shields.io/github/v/release/xlollx/Trackhop-Bridge?label=release" alt="Latest release"></a>
   <a href="https://github.com/xlollx/Trackhop-Bridge/releases"><img src="https://img.shields.io/github/downloads/xlollx/Trackhop-Bridge/total" alt="Downloads"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3ddc84" alt="Android 8.0+">
 </p>
 
@@ -23,7 +23,7 @@ Deezer sign-in without developer keys, the same web connectors the GitHub and F-
 **Who needs it:** only people who installed Trackhop from Google Play. Trackhop's GitHub and F-Droid
 versions already contain these connectors and do not need it: add the service in Trackhop's Accounts
 and sign in there. Not sure which one you have? See
-[Which Trackhop?](https://xlollx.github.io/Trackhop/guide/versions)
+[Which Trackhop?](https://trackhop.org/guide/versions)
 
 It is an Android app distributed **only here, as an APK**, never on Google Play. The Trackhop build on
 Google Play uses only official APIs and never mentions or links to this app. As a Trackhop plugin,
@@ -192,7 +192,7 @@ fingerprint in `Allowed.SHA256`, otherwise the two apps will not talk to each ot
 
 ## Beta
 
-The Bridge is in open beta together with Trackhop. It is the part most exposed to changes on the
+The Bridge is in beta (Trackhop itself is out of beta). It is the part most exposed to changes on the
 services' side, so "it worked yesterday" reports are expected and welcome: open an
 [issue](https://github.com/xlollx/Trackhop-Bridge/issues/new/choose) with Trackhop's technical
 details report (Settings → *Sync log* → *Share technical details*), which includes the plugin
@@ -241,6 +241,9 @@ is needed to fix a changed method. The fix itself goes into Trackhop (`android/b
 
 ## License
 
-GPL-3.0, see [LICENSE](LICENSE). Not affiliated with Google, YouTube, Amazon, Spotify or Apple.
+AGPL-3.0-only from the releases after 1.5.3 (earlier releases: GPL-3.0-only), see [LICENSE](LICENSE)
+and the additional terms in [NOTICE](NOTICE): keep the attribution
+"Trackhop Bridge by xlollx · AGPL-3.0 · github.com/xlollx/Trackhop-Bridge", and give a modified
+version a name of its own. Not affiliated with Google, YouTube, Amazon, Spotify or Apple.
 "YouTube", "YouTube Music", "Amazon Music", "Spotify" and "Apple Music" are trademarks of their
 respective owners, named here only to describe compatibility.
