@@ -2,5 +2,5 @@ android/bridge and android/ytm are copies of Trackhop's modules of the same name
 scripts/sync-from-trackhop.sh. Do not edit them here: change Trackhop, then sync again.
 
 Source: https://github.com/xlollx/Trackhop
-Last change: 4fc38ae34d40c6a0dd9435552e84ace2f85962ca (2026-11-03)
+Last change: 058ca273577d448caf921047da52e04d93604c3e (2026-11-03)
 Change: "Songport Bridge" reads "Trackhop Bridge" in the copied messages.
