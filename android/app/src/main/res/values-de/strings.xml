@@ -43,4 +43,8 @@
     <string name="deezer_connect">Bei Deezer anmelden</string>
     <string name="soundcloud_intro">Alpha: noch nicht mit echten Konten getestet. Probiere es zuerst mit einer Test-Playlist aus und melde Probleme. Melde dich auf der Seite von SoundCloud an, um deine Sets und gelikten Titel zu nutzen. Dein Passwort gibst du nur auf dieser Seite ein: Diese App sieht und speichert es nie. Gespeichert wird nur die Sitzung (Cookies), verschlüsselt auf diesem Telefon; Trackhop erhält nur deine Playlists und Titel.</string>
     <string name="soundcloud_connect">Bei SoundCloud anmelden</string>
+    <string name="liveone_intro">Alpha. Melde dich auf LiveOnes Seite an, um deine Presets zu synchronisieren (in Trackhop als Lieblingssongs). Das Passwort gibst du nur auf dieser Seite ein: Diese App sieht und speichert es nicht. Gespeichert wird nur die Sitzung, verschlüsselt auf diesem Handy.</string>
+    <string name="liveone_connect">Bei LiveOne anmelden</string>
+    <string name="anghami_intro">Alpha. Melde dich auf Anghamis Seite an, um deine Playlists und Lieblingssongs zu nutzen. Mit dieser App funktionieren in Trackhop auch öffentliche Anghami-Playlist-Links. Das Passwort gibst du nur auf dieser Seite ein: Diese App sieht und speichert es nicht. Gespeichert wird nur die Sitzung, verschlüsselt auf diesem Handy.</string>
+    <string name="anghami_connect">Bei Anghami anmelden</string>
 </resources>

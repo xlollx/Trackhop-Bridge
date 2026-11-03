@@ -43,4 +43,8 @@
     <string name="deezer_connect">Deezer에 로그인</string>
     <string name="soundcloud_intro">알파: 아직 실제 계정으로 테스트하지 않았어요. 먼저 테스트용 플레이리스트로 써 보고 문제를 알려 주세요. 내 플레이리스트와 좋아요한 트랙을 쓰려면 SoundCloud 자체 페이지에서 로그인하세요. 비밀번호는 그 페이지에만 입력하며, 이 앱은 비밀번호를 보거나 저장하지 않아요. 보관되는 건 세션(쿠키)뿐이며 이 휴대폰에 암호화되어 저장돼요. Trackhop은 플레이리스트와 트랙만 받아요.</string>
     <string name="soundcloud_connect">SoundCloud에 로그인</string>
+    <string name="liveone_intro">알파. LiveOne 페이지에서 로그인하면 프리셋(Trackhop에서는 좋아요한 곡)을 동기화할 수 있습니다. 비밀번호는 그 페이지에만 입력하며, 이 앱은 보거나 저장하지 않습니다. 이 휴대폰에 암호화된 세션만 보관됩니다.</string>
+    <string name="liveone_connect">LiveOne에 로그인</string>
+    <string name="anghami_intro">알파. Anghami 페이지에서 로그인하면 내 플레이리스트와 좋아요한 곡을 사용할 수 있습니다. 이 앱이 설치되어 있으면 Trackhop에서 Anghami 공개 플레이리스트 링크도 작동합니다. 비밀번호는 그 페이지에만 입력하며, 이 앱은 보거나 저장하지 않습니다. 이 휴대폰에 암호화된 세션만 보관됩니다.</string>
+    <string name="anghami_connect">Anghami에 로그인</string>
 </resources>

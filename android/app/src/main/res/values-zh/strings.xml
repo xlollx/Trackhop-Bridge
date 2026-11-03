@@ -43,4 +43,8 @@
     <string name="deezer_connect">登录 Deezer</string>
     <string name="soundcloud_intro">Alpha 测试版：尚未在真实账号上测试。请先用测试歌单试用，并报告遇到的问题。在 SoundCloud 自己的页面登录，即可使用你的歌单和喜欢的曲目。密码只在该页面输入：本应用不会看到也不会保存。保存的只有会话（Cookie），加密存放在这部手机上；Trackhop 只会收到你的歌单和曲目。</string>
     <string name="soundcloud_connect">登录 SoundCloud</string>
+    <string name="liveone_intro">Alpha 版。在 LiveOne 自己的页面登录，即可同步你的预设（在 Trackhop 中显示为喜欢的歌曲）。密码只在那个页面输入：本应用不会看到或保存它。只保留会话，并在这台手机上加密。</string>
+    <string name="liveone_connect">登录 LiveOne</string>
+    <string name="anghami_intro">Alpha 版。在 Anghami 自己的页面登录，即可使用你的歌单和喜欢的歌曲。安装本应用后，Trackhop 中也能使用 Anghami 公开歌单链接。密码只在那个页面输入：本应用不会看到或保存它。只保留会话，并在这台手机上加密。</string>
+    <string name="anghami_connect">登录 Anghami</string>
 </resources>

@@ -161,6 +161,17 @@ private fun Screen() {
             loginIntent = WebLoginActivity.intent(ctx, WebLoginActivity.SOUNDCLOUD), version = version, onChanged = { version++ },
         )
 
+        WebServiceCard(
+            title = stringResource(R.string.liveone_title), intro = stringResource(R.string.liveone_intro),
+            connectLabel = stringResource(R.string.liveone_connect), session = LiveOneBridge.session,
+            loginIntent = WebLoginActivity.intent(ctx, WebLoginActivity.LIVEONE), version = version, onChanged = { version++ },
+        )
+        WebServiceCard(
+            title = stringResource(R.string.anghami_title), intro = stringResource(R.string.anghami_intro),
+            connectLabel = stringResource(R.string.anghami_connect), session = AnghamiBridge.session,
+            loginIntent = WebLoginActivity.intent(ctx, WebLoginActivity.ANGHAMI), version = version, onChanged = { version++ },
+        )
+
         AmazonCard(version, onChanged = { version++ })
 
         UpdatesCard(onChecked = { updateChecked++ }, onEnabled = askNotifications)

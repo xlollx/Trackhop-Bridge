@@ -43,4 +43,8 @@
     <string name="deezer_connect">Iniciar sesión en Deezer</string>
     <string name="soundcloud_intro">Alfa: aún no probado con cuentas reales. Pruébalo antes con una lista de prueba e informa de los problemas. Inicia sesión en la propia página de SoundCloud para usar tus listas y canciones que te gustan. Escribes la contraseña solo en esa página: esta app nunca la ve ni la guarda. Lo que se guarda es la sesión (cookies), cifrada en este teléfono; Trackhop solo recibe tus listas y canciones.</string>
     <string name="soundcloud_connect">Iniciar sesión en SoundCloud</string>
+    <string name="liveone_intro">Alfa. Inicia sesión en la página de LiveOne para sincronizar tus presets (en Trackhop, como canciones que te gustan). La contraseña solo la escribes en esa página: esta app no la ve ni la guarda. Solo se conserva la sesión, cifrada en este teléfono.</string>
+    <string name="liveone_connect">Iniciar sesión en LiveOne</string>
+    <string name="anghami_intro">Alfa. Inicia sesión en la página de Anghami para usar tus playlists y canciones que te gustan. Con esta app instalada, en Trackhop también funcionan los enlaces públicos de playlists de Anghami. La contraseña solo la escribes en esa página: esta app no la ve ni la guarda. Solo se conserva la sesión, cifrada en este teléfono.</string>
+    <string name="anghami_connect">Iniciar sesión en Anghami</string>
 </resources>

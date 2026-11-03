@@ -3,7 +3,7 @@
 <h1 align="center">Trackhop Bridge</h1>
 
 <p align="center"><b>More music services for Trackhop, without developer accounts.</b><br>
-YouTube Music, Amazon Music, Spotify, Apple Music, Deezer and SoundCloud through their own web players. Your sign-ins stay on your phone.</p>
+YouTube Music, Amazon Music, Spotify, Apple Music, Deezer, SoundCloud, LiveOne and Anghami through their own web players. Your sign-ins stay on your phone.</p>
 
 <p align="center">
   <a href="https://github.com/xlollx/Trackhop-Bridge/releases/latest"><img src="https://img.shields.io/github/v/release/xlollx/Trackhop-Bridge?label=release" alt="Latest release"></a>
@@ -17,8 +17,9 @@ YouTube Music, Amazon Music, Spotify, Apple Music, Deezer and SoundCloud through
 </p>
 
 Trackhop Bridge is the connector plugin for [Trackhop](https://github.com/xlollx/Trackhop): it gives
-Trackhop's Google Play version YouTube Music, Amazon Music, SoundCloud, and Spotify, Apple Music and
-Deezer sign-in without developer keys, the same web connectors the GitHub and F-Droid versions carry inside.
+Trackhop's Google Play version everything its GitHub and F-Droid versions carry inside: YouTube Music,
+Amazon Music, SoundCloud, LiveOne and Anghami, Spotify, Apple Music and Deezer sign-in without developer
+keys, public playlist links of NetEase Cloud Music, QQ Music and Anghami, and songs from TikTok videos.
 
 **Who needs it:** only people who installed Trackhop from Google Play. Trackhop's GitHub and F-Droid
 versions already contain these connectors and do not need it: add the service in Trackhop's Accounts
@@ -53,6 +54,9 @@ its other services, and keep a playlist sync running, without developer accounts
 | Apple Music | sign-in without the Apple Developer Program | MusicKit with your own developer token (99 €/year) |
 | Deezer (alpha, from 1.5.0) | playlists with ISRCs, favourite tracks, search, create, add, remove, rename, delete, without a developer app | OAuth with your own app ID, for those who still have one: Deezer no longer registers new apps |
 | SoundCloud (alpha, from 1.5.0) | your sets and liked tracks, search, create, add, remove, reorder, rename, public/private, delete; public set links too | none: SoundCloud's API no longer takes new registrations |
+| LiveOne (alpha, from 1.6.0) | the presets of a free account (as liked songs), search, add | none: LiveOne has no public API |
+| Anghami (alpha, from 1.6.0) | playlists and liked songs, search, create, add, remove, rename, delete | none: Anghami has no public API |
+| Public links (from 1.6.0) | NetEase Cloud Music, QQ Music and Anghami public playlists as sync sources, and the song of a TikTok video, read by the Bridge for Trackhop | none |
 
 Deezer and SoundCloud need Trackhop 1.3.0 or newer. Both are alpha: not yet tested on real accounts,
 so try them on a test playlist first and report problems. The notice below is shown again before

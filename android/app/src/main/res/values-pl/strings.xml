@@ -43,4 +43,8 @@
     <string name="deezer_connect">Zaloguj się do Deezera</string>
     <string name="soundcloud_intro">Alfa: jeszcze nie testowane na prawdziwych kontach. Najpierw wypróbuj na testowej playliście i zgłaszaj problemy. Zaloguj się na stronie SoundCloud, aby korzystać ze swoich playlist i polubionych utworów. Hasło wpisujesz tylko na tej stronie: ta aplikacja nigdy go nie widzi ani nie zapisuje. Przechowywana jest tylko sesja (pliki cookie), zaszyfrowana na tym telefonie; Trackhop otrzymuje tylko Twoje playlisty i utwory.</string>
     <string name="soundcloud_connect">Zaloguj się do SoundCloud</string>
+    <string name="liveone_intro">Alfa. Zaloguj się na stronie LiveOne, aby synchronizować presety (w Trackhop jako polubione utwory). Hasło wpisujesz tylko na tej stronie: ta aplikacja go nie widzi ani nie zapisuje. Zachowywana jest tylko sesja, zaszyfrowana na tym telefonie.</string>
+    <string name="liveone_connect">Zaloguj się do LiveOne</string>
+    <string name="anghami_intro">Alfa. Zaloguj się na stronie Anghami, aby używać swoich playlist i polubionych utworów. Z tą aplikacją w Trackhop działają też publiczne linki do playlist Anghami. Hasło wpisujesz tylko na tej stronie: ta aplikacja go nie widzi ani nie zapisuje. Zachowywana jest tylko sesja, zaszyfrowana na tym telefonie.</string>
+    <string name="anghami_connect">Zaloguj się do Anghami</string>
 </resources>

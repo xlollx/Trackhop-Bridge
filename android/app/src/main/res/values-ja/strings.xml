@@ -43,4 +43,8 @@
     <string name="deezer_connect">Deezer にログイン</string>
     <string name="soundcloud_intro">アルファ版：実際のアカウントではまだ検証していません。まずテスト用のプレイリストで試し、問題があれば報告してください。プレイリストと「いいね」した曲を使うために、SoundCloud 自身のページでログインします。パスワードを入力するのはそのページだけで、このアプリがそれを見たり保存したりすることはありません。保存されるのはセッション（Cookie）だけで、この端末に暗号化して保存されます。Trackhop が受け取るのはプレイリストと曲だけです。</string>
     <string name="soundcloud_connect">SoundCloud にログイン</string>
+    <string name="liveone_intro">アルファ版。LiveOne のページでサインインすると、プリセット（Trackhop ではお気に入りの曲）を同期できます。パスワードはそのページでのみ入力し、このアプリは見ることも保存することもありません。保存されるのはこの端末上で暗号化されたセッションだけです。</string>
+    <string name="liveone_connect">LiveOne にサインイン</string>
+    <string name="anghami_intro">アルファ版。Anghami のページでサインインすると、自分のプレイリストとお気に入りの曲を使えます。このアプリをインストールしている間は、Trackhop で Anghami の公開プレイリストのリンクも使えます。パスワードはそのページでのみ入力し、このアプリは見ることも保存することもありません。保存されるのはこの端末上で暗号化されたセッションだけです。</string>
+    <string name="anghami_connect">Anghami にサインイン</string>
 </resources>

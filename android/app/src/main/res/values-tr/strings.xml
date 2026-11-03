@@ -43,4 +43,8 @@
     <string name="deezer_connect">Deezer\'da oturum aç</string>
     <string name="soundcloud_intro">Alfa: henüz gerçek hesaplarda denenmedi. Önce bir test çalma listesinde deneyin ve sorunları bildirin. Setlerinizi ve beğendiğiniz parçaları kullanmak için SoundCloud\'un kendi sayfasında oturum açın. Şifrenizi yalnızca o sayfaya yazarsınız: bu uygulama onu asla görmez ve saklamaz. Saklanan yalnızca oturumdur (çerezler), bu telefonda şifrelenmiş olarak; Trackhop yalnızca çalma listelerinizi ve parçalarınızı alır.</string>
     <string name="soundcloud_connect">SoundCloud\'da oturum aç</string>
+    <string name="liveone_intro">Alfa. Ön ayarlarını eşitlemek için LiveOne\'ın kendi sayfasında giriş yap (Trackhop\'ta beğenilen şarkılar olarak). Şifreni yalnızca o sayfaya yazarsın: bu uygulama onu görmez ve saklamaz. Yalnızca oturum, bu telefonda şifreli olarak saklanır.</string>
+    <string name="liveone_connect">LiveOne\'a giriş yap</string>
+    <string name="anghami_intro">Alfa. Çalma listelerini ve beğenilen şarkılarını kullanmak için Anghami\'nin kendi sayfasında giriş yap. Bu uygulama yüklüyken Trackhop\'ta herkese açık Anghami çalma listesi bağlantıları da çalışır. Şifreni yalnızca o sayfaya yazarsın: bu uygulama onu görmez ve saklamaz. Yalnızca oturum, bu telefonda şifreli olarak saklanır.</string>
+    <string name="anghami_connect">Anghami\'ye giriş yap</string>
 </resources>

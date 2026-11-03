@@ -43,4 +43,8 @@
     <string name="deezer_connect">Entrar no Deezer</string>
     <string name="soundcloud_intro">Alfa: ainda não testado em contas reais. Experimente primeiro numa playlist de teste e relate os problemas. Entre pela própria página do SoundCloud para usar suas playlists e faixas curtidas. Você digita a senha só nessa página: este app nunca a vê nem a guarda. O que fica guardado é a sessão (cookies), criptografada neste celular; o Trackhop recebe só suas playlists e faixas.</string>
     <string name="soundcloud_connect">Entrar no SoundCloud</string>
+    <string name="liveone_intro">Alfa. Entre na página do LiveOne para sincronizar seus presets (no Trackhop, como músicas curtidas). Você digita a senha só nessa página: este app não a vê nem guarda. Só a sessão é mantida, criptografada neste celular.</string>
+    <string name="liveone_connect">Entrar no LiveOne</string>
+    <string name="anghami_intro">Alfa. Entre na página do Anghami para usar suas playlists e músicas curtidas. Com este app instalado, os links públicos de playlists do Anghami também funcionam no Trackhop. Você digita a senha só nessa página: este app não a vê nem guarda. Só a sessão é mantida, criptografada neste celular.</string>
+    <string name="anghami_connect">Entrar no Anghami</string>
 </resources>

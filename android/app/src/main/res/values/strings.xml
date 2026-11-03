@@ -51,4 +51,10 @@
     <string name="deezer_connect">Sign in to Deezer</string>
     <string name="soundcloud_intro">Alpha: not yet tested on real accounts. Try it on a test playlist first and report problems. Sign in on SoundCloud\'s own page to use your sets and liked tracks. You type your password only on that page: this app never sees or stores it. What is kept is the session (cookies), encrypted on this phone; Trackhop only receives your playlists and tracks.</string>
     <string name="soundcloud_connect">Sign in to SoundCloud</string>
+    <string name="liveone_title" translatable="false">LiveOne</string>
+    <string name="anghami_title" translatable="false">Anghami</string>
+    <string name="liveone_intro">Alpha. Sign in on LiveOne\'s own page to sync your presets (shown in Trackhop as liked songs). You type your password only on that page: this app never sees or stores it. What is kept is the session, encrypted on this phone.</string>
+    <string name="liveone_connect">Sign in to LiveOne</string>
+    <string name="anghami_intro">Alpha. Sign in on Anghami\'s own page to use your playlists and liked songs. Public Anghami playlist links also work in Trackhop while this app is installed. You type your password only on that page: this app never sees or stores it. What is kept is the session, encrypted on this phone.</string>
+    <string name="anghami_connect">Sign in to Anghami</string>
 </resources>

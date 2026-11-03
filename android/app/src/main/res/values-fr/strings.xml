@@ -43,4 +43,8 @@
     <string name="deezer_connect">Se connecter à Deezer</string>
     <string name="soundcloud_intro">Alpha : pas encore testé sur de vrais comptes. Essayez-le d\'abord sur une playlist de test et signalez les problèmes. Connectez-vous sur la page de SoundCloud pour utiliser vos playlists et titres aimés. Vous tapez votre mot de passe uniquement sur cette page : cette app ne le voit ni ne l\'enregistre. Seule la session (cookies) est conservée, chiffrée sur ce téléphone ; Trackhop ne reçoit que vos playlists et titres.</string>
     <string name="soundcloud_connect">Se connecter à SoundCloud</string>
+    <string name="liveone_intro">Alpha. Connectez-vous sur la page de LiveOne pour synchroniser vos presets (dans Trackhop, comme titres aimés). Vous tapez le mot de passe uniquement sur cette page : cette app ne le voit ni ne le garde. Seule la session est conservée, chiffrée sur ce téléphone.</string>
+    <string name="liveone_connect">Se connecter à LiveOne</string>
+    <string name="anghami_intro">Alpha. Connectez-vous sur la page d\'Anghami pour utiliser vos playlists et titres aimés. Avec cette app installée, les liens publics de playlists Anghami fonctionnent aussi dans Trackhop. Vous tapez le mot de passe uniquement sur cette page : cette app ne le voit ni ne le garde. Seule la session est conservée, chiffrée sur ce téléphone.</string>
+    <string name="anghami_connect">Se connecter à Anghami</string>
 </resources>
