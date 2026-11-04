@@ -47,4 +47,6 @@
     <string name="liveone_connect">Entrar no LiveOne</string>
     <string name="anghami_intro">Alfa. Entre na página do Anghami para usar suas playlists e músicas curtidas. Com este app instalado, os links públicos de playlists do Anghami também funcionam no Trackhop. Você digita a senha só nessa página: este app não a vê nem guarda. Só a sessão é mantida, criptografada neste celular.</string>
     <string name="anghami_connect">Entrar no Anghami</string>
+    <string name="qobuz_intro">Alfa. Entre pela página do Qobuz (também com o Google) para usar suas playlists e faixas favoritas. Você digita a senha só nessa página: este app nunca a vê nem a guarda. Fica guardada só a sessão, criptografada neste celular.</string>
+    <string name="qobuz_connect">Entrar no Qobuz</string>
 </resources>

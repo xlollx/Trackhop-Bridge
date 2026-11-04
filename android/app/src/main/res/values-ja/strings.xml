@@ -47,4 +47,6 @@
     <string name="liveone_connect">LiveOne にサインイン</string>
     <string name="anghami_intro">アルファ版。Anghami のページでサインインすると、自分のプレイリストとお気に入りの曲を使えます。このアプリをインストールしている間は、Trackhop で Anghami の公開プレイリストのリンクも使えます。パスワードはそのページでのみ入力し、このアプリは見ることも保存することもありません。保存されるのはこの端末上で暗号化されたセッションだけです。</string>
     <string name="anghami_connect">Anghami にサインイン</string>
+    <string name="qobuz_intro">アルファ版。Qobuz のページでログイン（Google でも可）して、プレイリストとお気に入りの曲を使えます。パスワードはそのページでのみ入力し、このアプリが見たり保存したりすることはありません。保存されるのはセッションだけで、この端末で暗号化されます。</string>
+    <string name="qobuz_connect">Qobuz にログイン</string>
 </resources>

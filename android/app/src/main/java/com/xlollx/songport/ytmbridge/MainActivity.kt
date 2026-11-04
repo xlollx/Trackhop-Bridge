@@ -171,6 +171,11 @@ private fun Screen() {
             connectLabel = stringResource(R.string.anghami_connect), session = AnghamiBridge.session,
             loginIntent = WebLoginActivity.intent(ctx, WebLoginActivity.ANGHAMI), version = version, onChanged = { version++ },
         )
+        WebServiceCard(
+            title = stringResource(R.string.qobuz_title), intro = stringResource(R.string.qobuz_intro),
+            connectLabel = stringResource(R.string.qobuz_connect), session = QobuzBridge.session,
+            loginIntent = WebLoginActivity.intent(ctx, WebLoginActivity.QOBUZ), version = version, onChanged = { version++ },
+        )
 
         AmazonCard(version, onChanged = { version++ })
 

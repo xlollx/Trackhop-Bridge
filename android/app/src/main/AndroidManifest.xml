@@ -73,6 +73,7 @@
                 <action android:name="com.xlollx.songport.ytmbridge.SOUNDCLOUD_LOGIN" />
                 <action android:name="com.xlollx.songport.ytmbridge.LIVEONE_LOGIN" />
                 <action android:name="com.xlollx.songport.ytmbridge.ANGHAMI_LOGIN" />
+                <action android:name="com.xlollx.songport.ytmbridge.QOBUZ_LOGIN" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

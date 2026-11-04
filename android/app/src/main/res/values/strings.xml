@@ -57,4 +57,7 @@
     <string name="liveone_connect">Sign in to LiveOne</string>
     <string name="anghami_intro">Alpha. Sign in on Anghami\'s own page to use your playlists and liked songs. Public Anghami playlist links also work in Trackhop while this app is installed. You type your password only on that page: this app never sees or stores it. What is kept is the session, encrypted on this phone.</string>
     <string name="anghami_connect">Sign in to Anghami</string>
+    <string name="qobuz_title" translatable="false">Qobuz</string>
+    <string name="qobuz_intro">Alpha. Sign in on Qobuz\'s own page (also with Google) to use your playlists and favourite tracks. You type your password only on that page: this app never sees or stores it. What is kept is the session, encrypted on this phone.</string>
+    <string name="qobuz_connect">Sign in to Qobuz</string>
 </resources>

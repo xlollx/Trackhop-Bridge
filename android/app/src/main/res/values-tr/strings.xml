@@ -47,4 +47,6 @@
     <string name="liveone_connect">LiveOne\'a giriş yap</string>
     <string name="anghami_intro">Alfa. Çalma listelerini ve beğenilen şarkılarını kullanmak için Anghami\'nin kendi sayfasında giriş yap. Bu uygulama yüklüyken Trackhop\'ta herkese açık Anghami çalma listesi bağlantıları da çalışır. Şifreni yalnızca o sayfaya yazarsın: bu uygulama onu görmez ve saklamaz. Yalnızca oturum, bu telefonda şifreli olarak saklanır.</string>
     <string name="anghami_connect">Anghami\'ye giriş yap</string>
+    <string name="qobuz_intro">Alfa. Çalma listelerini ve favori parçalarını kullanmak için Qobuz\'un kendi sayfasında giriş yap (Google ile de). Parolanı yalnızca o sayfada yazarsın: bu uygulama onu asla görmez ve saklamaz. Saklanan tek şey, bu telefonda şifrelenmiş oturumdur.</string>
+    <string name="qobuz_connect">Qobuz\'a giriş yap</string>
 </resources>

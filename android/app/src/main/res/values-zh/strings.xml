@@ -47,4 +47,6 @@
     <string name="liveone_connect">登录 LiveOne</string>
     <string name="anghami_intro">Alpha 版。在 Anghami 自己的页面登录，即可使用你的歌单和喜欢的歌曲。安装本应用后，Trackhop 中也能使用 Anghami 公开歌单链接。密码只在那个页面输入：本应用不会看到或保存它。只保留会话，并在这台手机上加密。</string>
     <string name="anghami_connect">登录 Anghami</string>
+    <string name="qobuz_intro">Alpha。在 Qobuz 自己的页面登录（也可用 Google），即可使用你的歌单和收藏曲目。密码只在该页面输入：本应用从不查看或保存。只保存会话，并在本机加密。</string>
+    <string name="qobuz_connect">登录 Qobuz</string>
 </resources>

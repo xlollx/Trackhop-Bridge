@@ -47,4 +47,6 @@
     <string name="liveone_connect">Zaloguj się do LiveOne</string>
     <string name="anghami_intro">Alfa. Zaloguj się na stronie Anghami, aby używać swoich playlist i polubionych utworów. Z tą aplikacją w Trackhop działają też publiczne linki do playlist Anghami. Hasło wpisujesz tylko na tej stronie: ta aplikacja go nie widzi ani nie zapisuje. Zachowywana jest tylko sesja, zaszyfrowana na tym telefonie.</string>
     <string name="anghami_connect">Zaloguj się do Anghami</string>
+    <string name="qobuz_intro">Alfa. Zaloguj się na stronie Qobuz (także przez Google), by korzystać z playlist i ulubionych utworów. Hasło wpisujesz tylko tam: ta aplikacja nigdy go nie widzi ani nie przechowuje. Zachowywana jest tylko sesja, zaszyfrowana na tym telefonie.</string>
+    <string name="qobuz_connect">Zaloguj się do Qobuz</string>
 </resources>

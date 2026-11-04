@@ -31,8 +31,12 @@ import java.io.File
  */
 class AmazonCaptureActivity : ComponentActivity() {
     private lateinit var web: WebView
+    private lateinit var frame: android.widget.FrameLayout
+    private val popups = ArrayList<WebView>()
     private lateinit var counter: TextView
     private var count = 0
+    /** One writer for the page script and the WebView's own requests (several threads). */
+    private val sink by lazy { Sink() }
 
     /**
      * Another site's web player to capture instead of Amazon's (a service being added, Qobuz…):
@@ -47,6 +51,7 @@ class AmazonCaptureActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        forgetOld(this)
         count = if (file.exists()) file.readLines().size else 0
 
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -56,8 +61,10 @@ class AmazonCaptureActivity : ComponentActivity() {
         val clear = Button(this).apply { text = getString(R.string.bridge_amazon_capture_clear); setOnClickListener { file.delete(); count = 0; refresh() } }
         bar.addView(counter); bar.addView(clear); bar.addView(share)
         val hint = TextView(this).apply { text = if (site != null) getString(R.string.bridge_capture_site_intro, site) else getString(R.string.bridge_amazon_capture_intro); setPadding(16, 0, 16, 8); textSize = 12f }
-        web = WebView(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f) }
-        root.addView(bar); root.addView(hint); root.addView(web)
+        web = WebView(this)
+        // The page and, above it, the popups a sign-in opens ("Continue with Google").
+        frame = android.widget.FrameLayout(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f); addView(web) }
+        root.addView(bar); root.addView(hint); root.addView(frame)
         setContentView(root)
         BridgeInsets.fit(root)
         refresh()
@@ -75,7 +82,7 @@ class AmazonCaptureActivity : ComponentActivity() {
             loadWithOverviewMode = true
         }
         BridgeUa.apply(this, web)
-        web.addJavascriptInterface(Sink(), "SpCapture")
+        web.addJavascriptInterface(sink, "SpCapture")
         val hook = (site?.let { "window.__capSite = '${it.replace("'", "")}';\n" } ?: "") + HOOK
         val early = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
         if (early) WebViewCompat.addDocumentStartJavaScript(web, hook, setOf("*"))
@@ -83,6 +90,22 @@ class AmazonCaptureActivity : ComponentActivity() {
         val amazon = site == null
         if (amazon) AmazonBridge.install(this, web)
         web.webViewClient = object : WebViewClient() {
+            // Every request to the site as the WebView sees it (also those a page script cannot:
+            // workers, beacons, a reply it could not read): address and method, no body. A safety
+            // net under the script's fuller lines.
+            override fun shouldInterceptRequest(view: WebView, request: android.webkit.WebResourceRequest): android.webkit.WebResourceResponse? {
+                val s = site ?: return null
+                val u = request.url
+                val host = u.host ?: return null
+                if ((host == s || host.endsWith(".$s")) && !STATIC.containsMatchIn(u.path.orEmpty())) {
+                    val line = org.json.JSONObject()
+                        .put("t", System.currentTimeMillis()).put("seen", "webview")
+                        .put("method", request.method).put("url", cleanUrl(u.toString()))
+                        .put("headers", org.json.JSONObject(request.requestHeaders.mapValues { (k, v) -> if (SECRET_HEADER.containsMatchIn(k)) "[${v.length} chars]" else v.take(200) }))
+                    sink.log(line.toString())
+                }
+                return null
+            }
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                 if (!early) { view.evaluateJavascript(hook, null); if (amazon) view.evaluateJavascript(AmazonBridge.HOOK, null) }
             }
@@ -90,8 +113,61 @@ class AmazonCaptureActivity : ComponentActivity() {
                 if (!early) { view.evaluateJavascript(hook, null); if (amazon) view.evaluateJavascript(AmazonBridge.HOOK, null) }
             }
         }
-        onBackPressedDispatcher.addCallback(this) { if (web.canGoBack()) web.goBack() else finish() }
+        // A sign-in with Google, Apple or Facebook opens a popup and hands its result back to the
+        // page that opened it: a real second view, sharing the cookies, keeps that working.
+        web.settings.apply { setSupportMultipleWindows(true); javaScriptCanOpenWindowsAutomatically = true }
+        web.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message): Boolean {
+                val popup = WebView(this@AmazonCaptureActivity).apply {
+                    settings.apply { javaScriptEnabled = true; domStorageEnabled = true; setSupportMultipleWindows(true); javaScriptCanOpenWindowsAutomatically = true }
+                    BridgeUa.apply(this@AmazonCaptureActivity, this)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    webViewClient = WebViewClient()
+                    webChromeClient = object : android.webkit.WebChromeClient() {
+                        override fun onCloseWindow(window: WebView) { closePopup(window) }
+                    }
+                }
+                frame.addView(popup)
+                popups += popup
+                (resultMsg.obj as WebView.WebViewTransport).webView = popup
+                resultMsg.sendToTarget()
+                return true
+            }
+        }
+        onBackPressedDispatcher.addCallback(this) {
+            val top = popups.lastOrNull()
+            when {
+                top != null -> if (top.canGoBack()) top.goBack() else closePopup(top)
+                web.canGoBack() -> web.goBack()
+                else -> leave()
+            }
+        }
+        // What this screen does, every time: it records, and the file is for the developer only.
+        if (savedInstanceState == null) android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.bridge_capture_warning_title)
+            .setMessage(R.string.bridge_capture_warning_body)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
         web.loadUrl(startUrl ?: ("https://" + (AmazonSession.domain(this) ?: "music.amazon.com") + "/"))
+    }
+
+    /** Leaving with a capture on the phone: delete it now, or keep it (gone by itself after a day). */
+    private fun leave() {
+        if (!file.exists() || count == 0) { finish(); return }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.bridge_capture_delete_title)
+            .setMessage(R.string.bridge_capture_delete_body)
+            .setPositiveButton(R.string.bridge_capture_delete) { _, _ -> file.delete(); finish() }
+            .setNegativeButton(R.string.bridge_capture_keep) { _, _ -> finish() }
+            .show()
+    }
+
+    private fun closePopup(popup: WebView) {
+        popups -= popup
+        frame.removeView(popup)
+        popup.destroy()
     }
 
     private fun refresh() { counter.text = getString(R.string.bridge_amazon_capture_count, count) }
@@ -125,6 +201,30 @@ class AmazonCaptureActivity : ComponentActivity() {
     }
 
     companion object {
+        private val STATIC = Regex("""\.(?:png|jpe?g|webp|gif|svg|css|woff2?|ico|js|mp3|flac|m4a)$""", RegexOption.IGNORE_CASE)
+        private val SECRET_HEADER = Regex("authori|token|cookie|csrf|session|signature|credential", RegexOption.IGNORE_CASE)
+        /** Personal fields of a form or a query, by their decoded name (as the page script does). */
+        private val PERSONAL = Regex("pass|secret|token|mail|user_?name|login|authori[sz]|authenticat|birth|captcha|phone|address|gender|iban", RegexOption.IGNORE_CASE)
+
+        /** [url] with the values of its personal query fields blanked. */
+        fun cleanUrl(url: String): String {
+            val q = url.indexOf('?').takeIf { it >= 0 } ?: return url
+            val query = url.substring(q + 1).split('&').joinToString("&") { kv ->
+                val i = kv.indexOf('=')
+                if (i < 0) kv else {
+                    val name = runCatching { java.net.URLDecoder.decode(kv.substring(0, i), "UTF-8") }.getOrDefault(kv.substring(0, i))
+                    if (PERSONAL.containsMatchIn(name)) kv.substring(0, i) + "=[redacted]" else kv
+                }
+            }
+            return url.substring(0, q + 1) + query
+        }
+
+        /** A capture left on the phone is deleted a day after it was last written. */
+        fun forgetOld(ctx: android.content.Context) = runCatching {
+            ctx.filesDir.listFiles { f -> f.name.endsWith("capture.jsonl") || (f.name.startsWith("capture-") && f.name.endsWith(".jsonl")) }
+                ?.filter { System.currentTimeMillis() - it.lastModified() > 24 * 3_600_000L }?.forEach { it.delete() }
+        }
+
         /** The address to open for a capture of another site (https only). */
         const val EXTRA_URL = "url"
         private const val MAX_BYTES = 6L * 1024 * 1024
@@ -141,6 +241,26 @@ class AmazonCaptureActivity : ComponentActivity() {
         private val HOOK = """
             (function(){
               if (window.__spCap) return; window.__spCap = 1;
+              // Another site's desktop player (Qobuz asks for at least 1024 px): a 1280 px wide page,
+              // its own viewport tag rewritten as it comes, the window and the screen as wide.
+              if (window.__capSite) {
+                var W = 1280;
+                var wide = function(m){ if (m && m.getAttribute('name') === 'viewport') m.setAttribute('content', 'width=' + W); };
+                try {
+                  new MutationObserver(function(rs){ rs.forEach(function(r){ r.addedNodes.forEach(function(n){ if (n.tagName === 'META') wide(n); }); }); })
+                    .observe(document, { childList: true, subtree: true });
+                  document.addEventListener('DOMContentLoaded', function(){
+                    var m = document.querySelector('meta[name=viewport]');
+                    if (!m) { m = document.createElement('meta'); m.setAttribute('name', 'viewport'); (document.head || document.documentElement).appendChild(m); }
+                    wide(m);
+                  });
+                } catch(e){}
+                try { Object.defineProperty(window, 'innerWidth', { get: function(){ return W; }, configurable: true }); } catch(e){}
+                try { Object.defineProperty(window, 'outerWidth', { get: function(){ return W; }, configurable: true }); } catch(e){}
+                try { Object.defineProperty(Screen.prototype, 'width', { get: function(){ return W; }, configurable: true }); } catch(e){}
+                try { Object.defineProperty(Screen.prototype, 'availWidth', { get: function(){ return W; }, configurable: true }); } catch(e){}
+                try { Object.defineProperty(document.documentElement, 'clientWidth', { get: function(){ return W; }, configurable: true }); } catch(e){}
+              }
               // What the desktop player checks before it loads (read from its own code): the platform
               // must not be Linux (navigator.platform, "Linux aarch64" on a phone), the browser must
               // not be mobile, MSE must accept FLAC in MP4 and Widevine must accept it too. Otherwise
@@ -199,9 +319,22 @@ class AmazonCaptureActivity : ComponentActivity() {
                 return /skill\.music\.a2z\.com|gql\.music\.amazon\.|music\.amazon\.[a-z.]+\/(?:[A-Z]{2}\/)?api\//.test(a);
               };
               // Passwords and secrets in addresses and form bodies (a sign-in posts them): blanked.
-              var PARAM = /([?&]|^)((?:[a-z_]*pass(?:word)?|[a-z_]*secret|[a-z_]*token|email|username|login)=)[^&#]*/gi;
-              var clean = function(s){ return String(s).replace(PARAM, '$1$2[redacted]'); };
-              var KEY = /pass|secret|token|email|username|login|auth/i;
+              // Personal fields, whatever their form's naming: register[_password], user%5Bemail%5D…
+              var KEY = /pass|secret|token|mail|user_?name|login|authori[sz]|authenticat|birth|captcha|phone|address|gender|iban/i;
+              var pairs = function(s){
+                return s.split('&').map(function(kv){
+                  var i = kv.indexOf('='); if (i < 0) return kv;
+                  var k = kv.slice(0, i), name = k;
+                  try { name = decodeURIComponent(k.replace(/\+/g, ' ')); } catch(e){}
+                  return KEY.test(name) ? k + '=[redacted]' : kv;
+                }).join('&');
+              };
+              var clean = function(s){
+                s = String(s);
+                var q = s.indexOf('?');
+                if (/^https?:/i.test(s)) return q < 0 ? s : s.slice(0, q + 1) + pairs(s.slice(q + 1));
+                return pairs(s);
+              };
               var scrub = function(o){ if (o && typeof o === 'object') Object.keys(o).forEach(function(k){ if (KEY.test(k) && typeof o[k] !== 'object') o[k] = '[redacted]'; else scrub(o[k]); }); return o; };
               // Request headers as sent: names and values, credentials replaced by their length.
               var SECRET = /authori|token|cookie|csrf|session|signature|credential|x-amz-security/i;
@@ -217,6 +350,8 @@ class AmazonCaptureActivity : ComponentActivity() {
                 return out;
               };
               var send = function(o){ try { SpCapture.log(JSON.stringify(o)); } catch(e){} };
+              // An answer can name the account too (e-mail, birthday): the same fields blanked there.
+              var answer = function(t){ try { var j = JSON.parse(t); if (j && typeof j === 'object') return JSON.stringify(scrub(j)).slice(0, 30000); } catch(e){} return String(t).slice(0, 30000); };
               var redact = function(b){
                 if (b == null) return null;
                 if (typeof b !== 'string') { try { b = String(b); } catch(e) { return '[binary]'; } }
@@ -224,15 +359,34 @@ class AmazonCaptureActivity : ComponentActivity() {
                 catch(e) { return clean(b).slice(0, 4000); }
               };
               var of = window.fetch;
+              // A body as text, whatever the page passed: a string, form fields, a form, a Request.
+              var bodyText = function(b){
+                if (b == null) return Promise.resolve(null);
+                if (typeof b === 'string') return Promise.resolve(b);
+                try { if (b instanceof URLSearchParams) return Promise.resolve(b.toString()); } catch(e){}
+                try { if (b instanceof FormData) { var o = []; b.forEach(function(v, k){ o.push(encodeURIComponent(k) + '=' + encodeURIComponent(typeof v === 'string' ? v : '[file]')); }); return Promise.resolve(o.join('&')); } } catch(e){}
+                try { if (b instanceof Blob) return b.text(); } catch(e){}
+                try { if (b instanceof ArrayBuffer || ArrayBuffer.isView(b)) return Promise.resolve(new TextDecoder().decode(b)); } catch(e){}
+                return Promise.resolve(String(b));
+              };
               if (of) window.fetch = function(input, init){
                 var url = (typeof input === 'string') ? input : (input && input.url) || '';
                 var method = (init && init.method) || (input && input.method) || 'GET';
-                var body = init && init.body;
                 var reqHeaders = hdrs((init && init.headers) || (input && input.headers));
-                var p = of.apply(this, arguments);
-                if (match(url)) p.then(function(r){
-                  try { r.clone().text().then(function(t){ send({t: Date.now(), url: clean(abs(url)), method: method, headers: reqHeaders, body: redact(body), status: r.status, response: t.slice(0, 30000)}); }); } catch(e){}
-                });
+                var watched = match(url);
+                var bodyP = !watched ? null : (init && init.body != null) ? bodyText(init.body)
+                  : (input && typeof input !== 'string' && input.clone && method !== 'GET') ? input.clone().text().catch(function(){ return null; }) : Promise.resolve(null);
+                // Another site's player that cancels each request once it has its answer (Qobuz) would
+                // cancel this copy too: its signal is left out, here only.
+                var args = arguments;
+                if (watched && window.__capSite && init && init.signal) { var i2 = Object.assign({}, init); delete i2.signal; args = [input, i2]; }
+                var p = of.apply(this, args);
+                if (watched) p.then(function(r){
+                  var done = function(text, err){
+                    bodyP.then(function(bt){ send({t: Date.now(), url: clean(abs(url)), method: method, headers: reqHeaders, body: redact(bt), status: r.status, response: text == null ? null : answer(text), error: err}); });
+                  };
+                  try { r.clone().text().then(function(t){ done(t); }).catch(function(e){ done(null, String(e)); }); } catch(e){ done(null, String(e)); }
+                }).catch(function(e){ bodyP.then(function(bt){ send({t: Date.now(), url: clean(abs(url)), method: method, body: redact(bt), error: String(e)}); }); });
                 return p;
               };
               var oo = XMLHttpRequest.prototype.open, os = XMLHttpRequest.prototype.send;
@@ -242,7 +396,11 @@ class AmazonCaptureActivity : ComponentActivity() {
               XMLHttpRequest.prototype.send = function(b){
                 var x = this;
                 if (match(x.__u)) x.addEventListener('loadend', function(){
-                  send({t: Date.now(), url: clean(abs(x.__u)), method: x.__m, headers: hdrs(x.__h), body: redact(b), status: x.status, response: String(x.responseText || '').slice(0, 30000)});
+                  // responseText throws for a "json", "blob" or "arraybuffer" request: read what there is.
+                  var text = '';
+                  try { text = (x.responseType === '' || x.responseType === 'text') ? String(x.responseText || '') : (x.responseType === 'json' ? JSON.stringify(x.response) : '[' + x.responseType + ']'); } catch(e) { text = '[unreadable: ' + e + ']'; }
+                  try { send({t: Date.now(), url: clean(abs(x.__u)), method: x.__m, headers: hdrs(x.__h), body: redact(b), status: x.status, response: answer(text)}); }
+                  catch(e) { send({t: Date.now(), url: clean(abs(x.__u)), method: x.__m, error: String(e)}); }
                 });
                 return os.apply(this, arguments);
               };

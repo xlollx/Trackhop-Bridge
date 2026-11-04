@@ -47,4 +47,6 @@
     <string name="liveone_connect">LiveOne에 로그인</string>
     <string name="anghami_intro">알파. Anghami 페이지에서 로그인하면 내 플레이리스트와 좋아요한 곡을 사용할 수 있습니다. 이 앱이 설치되어 있으면 Trackhop에서 Anghami 공개 플레이리스트 링크도 작동합니다. 비밀번호는 그 페이지에만 입력하며, 이 앱은 보거나 저장하지 않습니다. 이 휴대폰에 암호화된 세션만 보관됩니다.</string>
     <string name="anghami_connect">Anghami에 로그인</string>
+    <string name="qobuz_intro">알파. Qobuz 페이지에서 로그인(Google로도 가능)하여 플레이리스트와 즐겨찾는 곡을 사용하세요. 비밀번호는 그 페이지에서만 입력하며 이 앱은 절대 보거나 저장하지 않습니다. 저장되는 것은 이 휴대폰에서 암호화된 세션뿐입니다.</string>
+    <string name="qobuz_connect">Qobuz에 로그인</string>
 </resources>
