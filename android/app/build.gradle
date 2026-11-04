@@ -16,8 +16,8 @@ android {
         applicationId "com.xlollx.songport.ytmbridge"
         minSdk 26
         targetSdk 36
-        versionCode 43
-        versionName "1.6.2"
+        versionCode 44
+        versionName "1.7.0"
         // The oldest Trackhop this build works with, from gradle.properties.
         buildConfigField "int", "MIN_TRACKHOP", project.property('minTrackhopVersionCode')
     }

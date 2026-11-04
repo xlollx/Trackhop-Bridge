@@ -56,7 +56,7 @@ its other services, and keep a playlist sync running, without developer accounts
 | SoundCloud (alpha, from 1.5.0) | your sets and liked tracks, search, create, add, remove, reorder, rename, public/private, delete; public set links too | none: SoundCloud's API no longer takes new registrations |
 | LiveOne (alpha, from 1.6.0) | the presets of a free account (as liked songs), search, add | none: LiveOne has no public API |
 | Anghami (alpha, from 1.6.0) | playlists and liked songs, search, create, add, remove, rename, delete | none: Anghami has no public API |
-| Public links (from 1.6.0) | NetEase Cloud Music, QQ Music and Anghami public playlists as sync sources, and the song of a TikTok video, read by the Bridge for Trackhop | none |
+| Public links (from 1.6.0) | NetEase Cloud Music, QQ Music and Anghami public playlists as sync sources, and the song of a TikTok video, read by the Bridge for Trackhop; from 1.7.0 also the song in a TikTok "original sound", recognised from its audio (a signature as SongRec makes it, sent to Shazam) | none |
 
 Deezer and SoundCloud need Trackhop 1.3.0 or newer. Both are alpha: not yet tested on real accounts,
 so try them on a test playlist first and report problems. The notice below is shown again before
