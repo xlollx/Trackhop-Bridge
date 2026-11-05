@@ -17,17 +17,20 @@ YouTube Music, Amazon Music, Spotify, Apple Music, Deezer, SoundCloud, LiveOne a
 </p>
 
 Trackhop Bridge is the connector plugin for [Trackhop](https://github.com/xlollx/Trackhop): it gives
-Trackhop's Google Play version everything its GitHub and F-Droid versions carry inside: YouTube Music,
+Trackhop's store versions (Google Play, Samsung Galaxy Store, Huawei AppGallery) everything its GitHub
+and F-Droid versions carry inside: YouTube Music,
 Amazon Music, SoundCloud, LiveOne and Anghami, Spotify, Apple Music and Deezer sign-in without developer
 keys, public playlist links of NetEase Cloud Music, QQ Music and Anghami, and songs from TikTok videos.
 
-**Who needs it:** only people who installed Trackhop from Google Play. Trackhop's GitHub and F-Droid
+**Who needs it:** only people who installed Trackhop from a store (Google Play, Galaxy Store or
+AppGallery). Trackhop's GitHub and F-Droid
 versions already contain these connectors and do not need it: add the service in Trackhop's Accounts
 and sign in there. Not sure which one you have? See
 [Which Trackhop?](https://trackhop.org/guide/versions)
 
-It is an Android app distributed **only here, as an APK**, never on Google Play. The Trackhop build on
-Google Play uses only official APIs and never mentions or links to this app. As a Trackhop plugin,
+It is an Android app distributed **only here, as an APK**, never in an app store. Trackhop's store
+builds use only official APIs and never mention or link to this app. It needs no Google services, so
+it also works on Huawei phones. As a Trackhop plugin,
 the Bridge is found by Trackhop when installed; Trackhop never includes, downloads or installs it.
 
 > **Songport Bridge is now Trackhop Bridge**, because Songport is now Trackhop. Same app, same code,
