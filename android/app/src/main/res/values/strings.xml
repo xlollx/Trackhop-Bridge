@@ -60,4 +60,8 @@
     <string name="qobuz_title" translatable="false">Qobuz</string>
     <string name="qobuz_intro">Alpha. Sign in on Qobuz\'s own page (also with Google) to use your playlists and favourite tracks. You type your password only on that page: this app never sees or stores it. What is kept is the session, encrypted on this phone.</string>
     <string name="qobuz_connect">Sign in to Qobuz</string>
+    <string name="support_row">Support Trackhop</string>
+    <string name="support_choose_body">Totally optional: nothing is unlocked, the apps stay complete for everyone. Thank you!</string>
+    <string name="support_kofi_desc">One-off · card or PayPal · no account needed</string>
+    <string name="support_sponsors_desc">Monthly or one-off · with a GitHub account</string>
 </resources>

@@ -49,4 +49,8 @@
     <string name="anghami_connect">Se connecter à Anghami</string>
     <string name="qobuz_intro">Alpha. Connecte-toi sur la page de Qobuz (aussi avec Google) pour utiliser tes playlists et titres favoris. Tu tapes ton mot de passe uniquement sur cette page : cette appli ne le voit ni ne le garde jamais. Seule la session est conservée, chiffrée sur ce téléphone.</string>
     <string name="qobuz_connect">Se connecter à Qobuz</string>
+    <string name="support_row">Soutenir Trackhop</string>
+    <string name="support_choose_body">Totalement facultatif : rien n\'est déverrouillé, les applications restent complètes pour tout le monde. Merci !</string>
+    <string name="support_kofi_desc">Ponctuel · carte ou PayPal · sans compte</string>
+    <string name="support_sponsors_desc">Mensuel ou ponctuel · avec un compte GitHub</string>
 </resources>

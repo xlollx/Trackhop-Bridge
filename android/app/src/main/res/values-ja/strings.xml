@@ -49,4 +49,8 @@
     <string name="anghami_connect">Anghami にサインイン</string>
     <string name="qobuz_intro">アルファ版。Qobuz のページでログイン（Google でも可）して、プレイリストとお気に入りの曲を使えます。パスワードはそのページでのみ入力し、このアプリが見たり保存したりすることはありません。保存されるのはセッションだけで、この端末で暗号化されます。</string>
     <string name="qobuz_connect">Qobuz にログイン</string>
+    <string name="support_row">Trackhop を応援</string>
+    <string name="support_choose_body">まったくの任意です。何かが解放されるわけではなく、アプリは誰でもすべての機能を使えます。ありがとうございます!</string>
+    <string name="support_kofi_desc">1 回のみ · カードまたは PayPal · アカウント不要</string>
+    <string name="support_sponsors_desc">毎月または 1 回のみ · GitHub アカウントが必要</string>
 </resources>

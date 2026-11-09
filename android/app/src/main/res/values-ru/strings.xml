@@ -49,4 +49,8 @@
     <string name="anghami_connect">Войти в Anghami</string>
     <string name="qobuz_intro">Альфа. Войдите на странице Qobuz (в том числе через Google), чтобы использовать плейлисты и избранные треки. Пароль вводится только там: это приложение никогда его не видит и не хранит. Хранится только сессия, зашифрованная на этом телефоне.</string>
     <string name="qobuz_connect">Войти в Qobuz</string>
+    <string name="support_row">Поддержать Trackhop</string>
+    <string name="support_choose_body">Совершенно необязательно: ничего не открывается, приложения остаются полными для всех. Спасибо!</string>
+    <string name="support_kofi_desc">Разово · карта или PayPal · без аккаунта</string>
+    <string name="support_sponsors_desc">Ежемесячно или разово · нужен аккаунт GitHub</string>
 </resources>

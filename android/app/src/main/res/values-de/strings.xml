@@ -49,4 +49,8 @@
     <string name="anghami_connect">Bei Anghami anmelden</string>
     <string name="qobuz_intro">Alpha. Melde dich auf der Seite von Qobuz an (auch mit Google), um deine Playlists und Lieblingstitel zu nutzen. Dein Passwort gibst du nur dort ein: diese App sieht und speichert es nie. Gespeichert wird nur die Sitzung, verschlüsselt auf diesem Handy.</string>
     <string name="qobuz_connect">Bei Qobuz anmelden</string>
+    <string name="support_row">Trackhop unterstützen</string>
+    <string name="support_choose_body">Völlig freiwillig: Nichts wird freigeschaltet, die Apps bleiben für alle vollständig. Danke!</string>
+    <string name="support_kofi_desc">Einmalig · Karte oder PayPal · ohne Konto</string>
+    <string name="support_sponsors_desc">Monatlich oder einmalig · mit einem GitHub-Konto</string>
 </resources>

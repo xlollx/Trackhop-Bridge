@@ -49,4 +49,8 @@
     <string name="anghami_connect">Accedi ad Anghami</string>
     <string name="qobuz_intro">Alpha. Accedi dalla pagina di Qobuz (anche con Google) per usare playlist e brani preferiti. La password la scrivi solo su quella pagina: questa app non la vede né la conserva mai. Resta solo la sessione, cifrata su questo telefono.</string>
     <string name="qobuz_connect">Accedi a Qobuz</string>
+    <string name="support_row">Supporta Trackhop</string>
+    <string name="support_choose_body">Del tutto facoltativo: non si sblocca nulla, le app restano complete per tutti. Grazie!</string>
+    <string name="support_kofi_desc">Una tantum · carta o PayPal · senza account</string>
+    <string name="support_sponsors_desc">Mensile o una tantum · con un account GitHub</string>
 </resources>

@@ -49,4 +49,8 @@
     <string name="anghami_connect">Anghami\'ye giriş yap</string>
     <string name="qobuz_intro">Alfa. Çalma listelerini ve favori parçalarını kullanmak için Qobuz\'un kendi sayfasında giriş yap (Google ile de). Parolanı yalnızca o sayfada yazarsın: bu uygulama onu asla görmez ve saklamaz. Saklanan tek şey, bu telefonda şifrelenmiş oturumdur.</string>
     <string name="qobuz_connect">Qobuz\'a giriş yap</string>
+    <string name="support_row">Trackhop\'u destekle</string>
+    <string name="support_choose_body">Tamamen isteğe bağlı: hiçbir şey açılmaz, uygulamalar herkes için eksiksiz kalır. Teşekkürler!</string>
+    <string name="support_kofi_desc">Tek seferlik · kart veya PayPal · hesap gerekmez</string>
+    <string name="support_sponsors_desc">Aylık veya tek seferlik · GitHub hesabıyla</string>
 </resources>

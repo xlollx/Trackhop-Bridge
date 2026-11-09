@@ -49,4 +49,8 @@
     <string name="anghami_connect">登录 Anghami</string>
     <string name="qobuz_intro">Alpha。在 Qobuz 自己的页面登录（也可用 Google），即可使用你的歌单和收藏曲目。密码只在该页面输入：本应用从不查看或保存。只保存会话，并在本机加密。</string>
     <string name="qobuz_connect">登录 Qobuz</string>
+    <string name="support_row">支持 Trackhop</string>
+    <string name="support_choose_body">完全自愿：不会解锁任何内容，应用对所有人都是完整的。谢谢！</string>
+    <string name="support_kofi_desc">一次性 · 银行卡或 PayPal · 无需账号</string>
+    <string name="support_sponsors_desc">按月或一次性 · 需要 GitHub 账号</string>
 </resources>

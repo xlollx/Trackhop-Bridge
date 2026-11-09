@@ -194,6 +194,31 @@ private fun Screen() {
         TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/xlollx/Trackhop-Bridge"))) }) {
             Text(stringResource(R.string.source_code))
         }
+        // Optional and unlocks nothing: Ko-fi or GitHub Sponsors, chosen in a small dialog.
+        var supportOpen by remember { mutableStateOf(false) }
+        TextButton(onClick = { supportOpen = true }) { Text("☕ " + stringResource(R.string.support_row)) }
+        if (supportOpen) AlertDialog(
+            onDismissRequest = { supportOpen = false },
+            title = { Text(stringResource(R.string.support_row)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.support_choose_body), style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(8.dp))
+                    listOf(
+                        Triple("☕ Ko-fi", R.string.support_kofi_desc, "https://ko-fi.com/xlollx"),
+                        Triple("♥ GitHub Sponsors", R.string.support_sponsors_desc, "https://github.com/sponsors/xlollx"),
+                    ).forEach { (name, desc, url) ->
+                        TextButton(onClick = { supportOpen = false; ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(name, style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { supportOpen = false }) { Text(stringResource(android.R.string.cancel)) } },
+        )
         var langOpen by remember { mutableStateOf(false) }
         TextButton(onClick = { langOpen = true }) {
             Text(stringResource(R.string.language) + ": " + AppLocale.label(ctx, AppLocale.current(ctx)))
