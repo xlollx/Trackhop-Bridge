@@ -30,7 +30,17 @@ import java.util.concurrent.TimeUnit
  *
  * No Android here: the server build compiles this file as it is (server/build.gradle).
  */
-class AnghamiWebClient(private val host: WebHost) {
+class AnghamiWebClient(private val host: WebHost, private val transport: Transport? = null) {
+
+    /**
+     * How a call reaches Anghami. Its gateway refuses plain HTTP clients with a 406 (#53), so on the
+     * phone the calls go through a browser engine ([WebEngine]); without one (the server, or an
+     * engine that could not start) they go by plain HTTP.
+     */
+    fun interface Transport {
+        /** [form] is the urlencoded body of a POST, null for a GET; the answer's status and body. */
+        fun send(method: String, url: String, form: String?): Pair<Int, String>
+    }
 
     private val http = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).withHook().build()
 
@@ -41,7 +51,7 @@ class AnghamiWebClient(private val host: WebHost) {
     /** A GET carries its type in the address; a POST in its form, the address then naming it only as angh_type. */
     private fun gatewayUrl(type: String, params: Map<String, String> = emptyMap(), signed: Boolean = true, typeInQuery: Boolean = true): String {
         val all = (if (typeInQuery) mapOf("type" to type) else emptyMap()) + params + mapOf(
-            "lang" to "en", "language" to "en", "output" to "jsonhp", "web2" to "true",
+            "lang" to "en", "language" to "en", "userlanguageprod" to "en", "output" to "jsonhp", "web2" to "true",
             "fingerprint" to fingerprint(), "angh_type" to type,
         ) + (if (signed) mapOf("sid" to sid()) else emptyMap())
         return GATEWAY + "?" + all.entries.joinToString("&") { (k, v) -> k + "=" + URLEncoder.encode(v, "UTF-8") }
@@ -51,12 +61,22 @@ class AnghamiWebClient(private val host: WebHost) {
         .header("User-Agent", host.userAgent).header("Origin", SITE).header("Referer", "$SITE/").header("Accept", "application/json")
 
     private fun read(req: Request): JsonElement {
-        val (code, body) = http.newCall(req).execute().use { it.code to it.body?.string().orEmpty() }
+        val (code, body) = exchange(req)
         if (code == 401 || code == 403) throw BridgeException(EXPIRED)
+        if (code == 406 && transport == null) throw BridgeException("Anghami HTTP 406: it refuses plain HTTP clients (no browser engine here)")
         if (code !in 200..299) throw BridgeException("Anghami HTTP $code")
         val j = runCatching { parseJson(body) }.getOrElse { throw BridgeException("Anghami answered something that is not JSON") }
         problemIn(j)?.let { throw BridgeException(it) }
         return j
+    }
+
+    /** The request through [transport] when there is one (method, address and form only: the browser adds its own headers), else OkHttp. */
+    private fun exchange(req: Request): Pair<Int, String> {
+        transport?.let { t ->
+            val form = req.body?.let { b -> okio.Buffer().also { b.writeTo(it) }.readUtf8() }
+            return t.send(req.method, req.url.toString(), form)
+        }
+        return http.newCall(req).execute().use { it.code to it.body?.string().orEmpty() }
     }
 
     private fun get(type: String, params: Map<String, String> = emptyMap(), signed: Boolean = true): JsonElement =
@@ -146,6 +166,22 @@ class AnghamiWebClient(private val host: WebHost) {
         fun sidIn(text: String?): String? = text?.let { SID_SHAPE.find(it)?.value }
 
         /**
+         * The sid a request of the player carries in its `sid` parameter: Anghami's known shape, or
+         * (#53, after a sign-in with Google the shape was another) any long value but the anonymous
+         * `emptysid-…` one sent before signing in. Whatever it is, it is tried before it is kept.
+         */
+        fun sidValue(value: String?): String? {
+            val v = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            sidIn(v)?.let { return it }
+            return v.takeIf { !it.startsWith("emptysid", ignoreCase = true) && it.length >= 20 && it.none { c -> c.isWhitespace() || c == '&' || c == '"' } }
+        }
+
+        /** The sid's shape for the log, never its value: the lengths of its ':'-separated parts. */
+        fun sidShape(value: String?): String = value?.let { v ->
+            if (v.startsWith("emptysid", ignoreCase = true)) "anonymous" else v.split(':').joinToString(":") { it.length.toString() } + " chars"
+        } ?: "none"
+
+        /**
          * The session in [text]: the sid, with the fingerprint it was used with when [text] is a whole
          * request address of the player (`…gateway.php?…&fingerprint=…&sid=…`); null without a sid.
          */
@@ -156,7 +192,7 @@ class AnghamiWebClient(private val host: WebHost) {
                 val k = runCatching { URLDecoder.decode(kv.substringBefore('='), "UTF-8") }.getOrDefault("")
                 k to runCatching { URLDecoder.decode(kv.substringAfter('='), "UTF-8") }.getOrDefault("")
             }
-            val sid = sidIn(params["sid"]) ?: sidIn(t) ?: return null
+            val sid = sidValue(params["sid"]) ?: sidIn(t) ?: return null
             return sid to params["fingerprint"]?.takeIf { it.isNotBlank() && params["sid"] != null }
         }
 
