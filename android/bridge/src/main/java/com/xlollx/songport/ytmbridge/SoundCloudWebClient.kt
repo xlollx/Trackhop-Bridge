@@ -89,6 +89,8 @@ class SoundCloudWebClient(private val ctx: Context) {
      * is the session over ([EXPIRED]).
      */
     private fun api(method: String, path: String, body: JsonElement? = null): JsonElement {
+        // Found gone for good: said at once, without a call or a hidden page, until the next sign-in.
+        if (SoundCloudRenewal.expiredAt(ctx) != null && token() != null) throw BridgeException(EXPIRED)
         SoundCloudRenewal.renewIfOld(ctx)
         var refreshed = false
         var target = session.get(ctx, "apiHost") ?: SoundCloudBridge.API_V2

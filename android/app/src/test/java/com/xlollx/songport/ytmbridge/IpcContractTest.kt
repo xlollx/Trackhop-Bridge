@@ -34,7 +34,7 @@ class IpcContractTest {
         "deezer.search", "deezer.track", "deezer.create", "deezer.add", "deezer.remove", "deezer.rename", "deezer.delete",
         "soundcloud.status", "soundcloud.disconnect", "soundcloud.playlists", "soundcloud.playlistInfo", "soundcloud.version",
         "soundcloud.tracks", "soundcloud.search", "soundcloud.create", "soundcloud.add", "soundcloud.remove", "soundcloud.reorder",
-        "soundcloud.rename", "soundcloud.visibility", "soundcloud.delete",
+        "soundcloud.rename", "soundcloud.visibility", "soundcloud.delete", "soundcloud.keepAlive",
     )
 
     /** The sign-in actions Trackhop starts (its providers' LOGIN_ACTION), each exported by this app's manifest. */
@@ -67,6 +67,15 @@ class IpcContractTest {
             assertTrue(m, b.containsKey("connected"))
             assertFalse(m, b.getBoolean("connected"))
         }
+    }
+
+    /** Trackhop's background keep-alive for SoundCloud: without a session it renews nothing and opens no page. */
+    @Test fun soundCloudKeepAliveAnswersWithoutASession() {
+        val b = BridgeCore.call(RuntimeEnvironment.getApplication(), "soundcloud.keepAlive", null, null)
+        assertNull(b.getString("error"))
+        assertFalse(b.getBoolean("renewed"))
+        assertTrue(b.containsKey("connected"))
+        assertFalse(b.getBoolean("connected"))
     }
 
     @Test fun everyMethodTrackhopCallsIsServed() {

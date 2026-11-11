@@ -2,5 +2,6 @@ android/bridge and android/ytm are copies of Trackhop's modules of the same name
 scripts/sync-from-trackhop.sh. Do not edit them here: change Trackhop, then sync again.
 
 Source: https://github.com/xlollx/Trackhop
-Last change: 1cccbcd4452eb6585f4c55098499e99a580ad766 (2026-11-10)
+Last change: a5418b1604f1578aeb6f3f70cfcdce5c1bdd5d60 (2026-11-11), branch hotfix-1.16.2
+Also: 40a24e5a9348c6254c59a53a223bfc9625af014d (2026-11-11), the Spotify client token fix (in next-119, not in hotfix-1.16.2)
 Change: "Songport Bridge" reads "Trackhop Bridge" in the copied messages.
