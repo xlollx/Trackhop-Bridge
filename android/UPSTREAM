@@ -2,5 +2,6 @@ android/bridge and android/ytm are copies of Trackhop's modules of the same name
 scripts/sync-from-trackhop.sh. Do not edit them here: change Trackhop, then sync again.
 
 Source: https://github.com/xlollx/Trackhop
-Last change: a9a43610 (2026-11-11), branch hotfix-1.16.2
+Last change: a9df7845cd3741f2ed25bb47ffea728d7be5d361 (2026-11-12), branch hotfix-1.16.3
+Content: Trackhop main with the Amazon Music search fix only (a1921104, from 69fe39a6); a9df7845 reverts the album search picked after it, so the modules equal a1921104
 Change: "Songport Bridge" reads "Trackhop Bridge" in the copied messages.
