@@ -57,6 +57,7 @@ object Allowed {
     private val SHA256 = setOf(
         "21EADF268C72F85565961A6045BF4BE5ABAF256D680D1E0D808D93ED22D35032", // release upload key
         "8BEC806768B3789A40E741BBFCEC462C71950E32A7A1DA15665E95BB7A0AE754", // CI debug key
+        "410826F07FFC9270445AF76FFCAAC642BBE2C76E19328C83832693423E6BBCC5", // Google Play App Signing (Trackhop installed from Play)
     )
 
     fun callerOk(ctx: Context, callingPackage: String?): Boolean {
