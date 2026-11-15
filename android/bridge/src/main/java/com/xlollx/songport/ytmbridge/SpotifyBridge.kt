@@ -105,6 +105,8 @@ object SpotifyBridge {
         val latch = CountDownLatch(1)
         var result: Token? = null
         var error: String? = null
+        // The player's page did not load (no internet, the connection just back): its own texts say so.
+        var loadFailed = false
         var web: WebView? = null
         val main = Handler(Looper.getMainLooper())
 
@@ -177,7 +179,16 @@ object SpotifyBridge {
                     }
                     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                         intercept(request) ?: super.shouldInterceptRequest(view, request)
+                    override fun onReceivedError(view: WebView, request: WebResourceRequest, err: android.webkit.WebResourceError) {
+                        if (!request.isForMainFrame || result != null) return
+                        loadFailed = true
+                        error = pageLoadError(err.errorCode, err.description?.toString())
+                        latch.countDown()
+                    }
                     override fun onPageFinished(view: WebView, url: String) {
+                        // A page that did not load is an error page: asking it for the token only gave
+                        // "Failed to parse URL", a text no one could read as the network's.
+                        if (loadFailed) return
                         // Belt and braces: the session block in the HTML, then the endpoint from the page context.
                         view.evaluateJavascript(FALLBACK, null)
                     }
@@ -189,9 +200,19 @@ object SpotifyBridge {
             }
         }
         latch.await(35, TimeUnit.SECONDS)
+        // The page loaded but its own request for the token got no answer ("Failed to fetch": the
+        // connection dropped a moment later): said in the network's words when it cannot be reached.
+        if (result == null) error = error?.let { NetWords.fetchFailure("open.spotify.com", it) }
         main.post { runCatching { web?.stopLoading(); web?.destroy() } }
         return result ?: throw BridgeException(SpotifyWebClient.tokenFailure(error))
     }
+
+    /**
+     * The web player's page could not load: said in the words the engine reads as the network's
+     * (NetError), so the run waits for the connection or tries again instead of failing.
+     */
+    internal fun pageLoadError(code: Int, description: String?): String =
+        NetWords.pageLoad("the web player", "open.spotify.com", code, description)
 
     // The web player requests its token at start-up; mirror that response to SpBridge.token.
     private val HOOK = """

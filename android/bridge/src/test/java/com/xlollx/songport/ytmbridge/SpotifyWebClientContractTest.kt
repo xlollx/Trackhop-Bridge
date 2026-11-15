@@ -239,6 +239,55 @@ class SpotifyWebClientContractTest {
         assertNull(w.json()["baseRevision"]) // a playlist's own changes need no revision
     }
 
+    // ------------------------------------------------------------------ a playlist's picture
+
+    @Test fun aCoverIsUploadedRegisteredThenMadeThePlaylistsPicture() {
+        val jpeg = byteArrayOf(-1, -40, -1, -32, 1, 2, 3)
+        answer("""{"uploadToken":"made-up-upload-token"}""", 200, "Content-Type" to "application/vnd.spotify.http-image-upload+json;charset=iso-8859-1")
+        answer("""{"picture":"made-up-picture"}""")
+        answer("""{"revision":"AAAAEgAAAAA="}""")
+        web.setCover("P1", jpeg)
+
+        val up = call(0)
+        assertEquals("POST", up.method)
+        assertEquals("image-upload.spotify.com", up.host())
+        assertEquals("/v4/playlist", up.requestUrl!!.encodedPath)
+        assertEquals("image/jpeg", up.getHeader("Content-Type")!!.substringBefore(';'))
+        assertEquals("Bearer BQ-web-token", up.getHeader("Authorization"))
+        assertEquals("CT-1", up.getHeader("client-token"))
+        assertEquals(jpeg.toList(), up.body.clone().readByteArray().toList())
+
+        val reg = call(1)
+        assertEquals("POST", reg.method)
+        assertEquals("spclient.wg.spotify.com", reg.host())
+        assertEquals("/playlist/v2/playlist/P1/register-image", reg.requestUrl!!.encodedPath)
+        assertEquals("Bearer BQ-web-token", reg.getHeader("Authorization"))
+        assertEquals("CT-1", reg.getHeader("client-token"))
+        assertEquals("WebPlayer", reg.getHeader("app-platform"))
+        assertEquals("made-up-upload-token", reg.json()["uploadToken"].str)
+
+        val change = call(2)
+        assertEquals("/playlist/v2/playlist/P1/changes", change.requestUrl!!.encodedPath)
+        val o = op(change)
+        assertEquals(6L, o["kind"].long)
+        assertEquals("made-up-picture", o["updateListAttributes"]["newAttributes"]["values"]["picture"].str)
+        assertEquals(3, BridgeMock.calls.size)
+    }
+
+    @Test fun aRefusedUploadRegistersNothing() {
+        answer("", 413)
+        try { web.setCover("P1", byteArrayOf(1, 2, 3)); fail() } catch (e: BridgeException) { assertTrue(e.message!!.contains("413")) }
+        assertEquals(1, BridgeMock.calls.size)
+    }
+
+    @Test fun aRefusedBearerOnTheUploadIsRecapturedOnce() {
+        answer("", 401)
+        answer("""{"uploadToken":"t2"}"""); answer("""{"picture":"p2"}"""); answer("{}")
+        web.setCover("P1", byteArrayOf(1, 2, 3))
+        assertEquals(4, BridgeMock.calls.size)
+        assertEquals("image-upload.spotify.com", call(1).host())
+    }
+
     @Test fun moveAndRenameGoToThePlaylistStore() {
         answer("{}"); answer("{}")
         web.moveItems("A", listOf(3 to 0, 0 to 5))
@@ -272,5 +321,121 @@ class SpotifyWebClientContractTest {
     @Test fun anUnreadablePageIsAnErrorNotAnEmptyPlaylist() {
         answer("""{"data":{"playlistV2":{"__typename":"Playlist","content":{"totalCount":3,"items":[{"uid":"a","itemV2":{"data":{"__typename":"Mystery"}}}]}}}}""")
         try { web.playlistTracks("A"); fail() } catch (e: BridgeException) { assertTrue(e.message!!.contains("nothing readable")) }
+    }
+
+    /** The shape of the player's own answer (a capture of the profile page, 11/2026), with made-up names and ids. */
+    @Test fun topSongsAreAskedAsTheProfilePageAsksThem() {
+        val cover = """{"sources":[{"height":300,"url":"https://i.example/c300","width":300},{"height":64,"url":"https://i.example/c64","width":64}]}"""
+        answer("""{"data":{"me":{"profile":{
+            "topArtists":{"__typename":"ArtistPageV2","totalCount":2,"items":[
+              {"data":{"__typename":"Artist","profile":{"name":"Neon Harbour"},"uri":"spotify:artist:a1","visuals":{"avatarImage":$cover}}},
+              {"data":{"__typename":"Artist","profile":{"name":"Ölfa"},"uri":"spotify:artist:a2","visuals":{"avatarImage":$cover}}}]},
+            "topTracks":{"__typename":"TrackPageV2","totalCount":340,"items":[
+              {"data":{"__typename":"Track","albumOfTrack":{"coverArt":$cover,"name":"Low Tide","uri":"spotify:album:al1"},
+                "artists":{"items":[{"profile":{"name":"Neon Harbour"},"uri":"spotify:artist:a1"}]},
+                "associationsV3":{"audioAssociations":{"totalCount":0},"videoAssociations":{"totalCount":1}},
+                "contentRating":{"label":"EXPLICIT"},"duration":{"totalMilliseconds":201000},"mediaType":"AUDIO","name":"Pier Lights","saved":true,
+                "uri":"spotify:track:t1","visualIdentity":{"sixteenByNineCoverImage":{"image":{"data":{"__typename":"ImageV2","sources":[]}}}}}},
+              {"data":{"__typename":"Episode","uri":"spotify:episode:e1","name":"Talk"}},
+              {"data":{"__typename":"Track","albumOfTrack":{"coverArt":$cover,"name":"Ölfa","uri":"spotify:album:al2"},
+                "artists":{"items":[{"profile":{"name":"Ölfa"},"uri":"spotify:artist:a2"},{"profile":{"name":"Neon Harbour"},"uri":"spotify:artist:a1"}]},
+                "contentRating":{"label":"NONE"},"duration":{"totalMilliseconds":187500},"mediaType":"AUDIO","name":"Kettle","saved":false,"uri":"spotify:track:t2"}}]}}}}}""")
+        val top = web.top("MID_TERM")
+        assertEquals(listOf("t1", "t2"), top.tracks.map { it.id })
+        assertEquals(listOf("Neon Harbour"), top.tracks[0].artists)
+        assertEquals(listOf("Ölfa", "Neon Harbour"), top.tracks[1].artists)
+        assertEquals("Low Tide", top.tracks[0].album)
+        assertEquals(201_000L, top.tracks[0].durationMs)
+        assertEquals(true, top.tracks[0].explicit)
+        assertEquals("spotify:track:t1", top.tracks[0].uri)
+        assertEquals(listOf("Neon Harbour", "Ölfa"), top.artists)
+        val req = BridgeMock.calls.last { it.host() == "api-partner.spotify.com" }
+        val sent = req.json()
+        assertEquals("userTopContent", sent["operationName"].str)
+        assertEquals(SpotifyWebClient.SHIPPED_HASHES["userTopContent"], sent["extensions"]["persistedQuery"]["sha256Hash"].str)
+        assertEquals(1L, sent["extensions"]["persistedQuery"]["version"].long)
+        val v = sent["variables"]
+        assertEquals("true", v["includeTopTracks"].toString())
+        assertEquals("true", v["includeTopArtists"].toString())
+        for (input in listOf(v["topTracksInput"], v["topArtistsInput"])) {
+            assertEquals("MID_TERM", input["timeRange"].str)
+            assertEquals("AFFINITY", input["sortBy"].str)
+            // The player's "Show all" pages ask 100.
+            assertEquals(100L, input["limit"].long)
+            assertEquals(0L, input["offset"].long)
+        }
+    }
+
+    /** An artist's tour dates: the player's search for the artist, its `ArtistConcerts`, then a concert's own page. */
+    @Test fun concertsAreAskedAsTheArtistAndConcertPagesAskThem() {
+        answer("""{"data":{"searchV2":{"artists":{"items":[
+            {"data":{"__typename":"Artist","uri":"spotify:artist:x0","profile":{"name":"Neon Harbour Tribute"}}},
+            {"data":{"__typename":"Artist","uri":"spotify:artist:a1","profile":{"name":"Neón  harbour"}}}]}}}}""")
+        answer("""{"data":{"artistUnion":{"profile":{"name":"Neon Harbour"},"uri":"spotify:artist:a1"},
+            "concerts":{"concerts":{"items":[
+              {"data":{"artists":{"items":[{"data":{"profile":{"name":"Neon Harbour"}}}]},"location":{"city":"Lyon"},"startDateIsoString":"2030-03-14T20:00+01:00","title":"Neon Harbour – Spring","uri":"spotify:concert:c1"}},
+              {"data":{"artists":{"items":[]},"location":{"city":"Austin"},"startDateIsoString":"2030-04-02T19:30-05:00","title":"Harbour Fest","uri":"spotify:concert:c2"}},
+              {"data":{"title":"broken"}}]}}}}""")
+        val uri = web.artistUri("Neon Harbour")
+        assertEquals("spotify:artist:a1", uri)
+        val dates = web.concerts(uri!!)
+        assertEquals(listOf("spotify:concert:c1", "spotify:concert:c2"), dates.map { it.uri })
+        assertEquals("Lyon", dates[0].city)
+        assertEquals("2030-03-14T20:00+01:00", dates[0].start)
+        assertEquals("", dates[0].country)
+        val list = BridgeMock.calls.last { it.host() == "api-partner.spotify.com" }.json()
+        assertEquals("ArtistConcerts", list["operationName"].str)
+        assertEquals(SpotifyWebClient.SHIPPED_HASHES["ArtistConcerts"], list["extensions"]["persistedQuery"]["sha256Hash"].str)
+        assertEquals("spotify:artist:a1", list["variables"]["artistUri"].str)
+        assertEquals("null", list["variables"]["geoHash"].toString())
+        assertEquals("false", list["variables"]["includeNearby"].toString())
+
+        answer("""{"data":{"concert":{"__typename":"ConcertV2","ageRestriction":"","festival":false,"doorsOpenTimeIsoString":null,
+            "location":{"attribution":null,"city":"Lyon","coordinates":{"latitude":45.7,"longitude":4.8},"country":"fr","metroAreaLocation":null,"name":"Salle du Quai","region":null},
+            "offers":{"items":[{"availability":"UNKNOWN","providerName":"Tickets Co","saleType":"on-sale","url":"https://tickets.example/e/1","urlType":"TICKET_PAGE"}],"totalCount":1},
+            "startDateIsoString":"2030-03-14T20:00+01:00","status":"UNKNOWN","title":"Neon Harbour – Spring","uri":"spotify:concert:c1"},
+            "me":{"profile":{"location":{"name":"Somewhere"}}}}}""")
+        val one = web.concert("spotify:concert:c1")!!
+        assertEquals("Salle du Quai", one.venue)
+        assertEquals("FR", one.country)
+        assertEquals("Lyon", one.city)
+        val page = BridgeMock.calls.last { it.host() == "api-partner.spotify.com" }.json()
+        assertEquals("concert", page["operationName"].str)
+        assertEquals(SpotifyWebClient.SHIPPED_HASHES["concert"], page["extensions"]["persistedQuery"]["sha256Hash"].str)
+        assertEquals("spotify:concert:c1", page["variables"]["uri"].str)
+        assertEquals("true", page["variables"]["authenticated"].toString())
+    }
+
+    /** An artist's own site: the artist page's `queryArtistOverview`, its About links and its merch shelf. */
+    @Test fun anArtistsSitesAreAskedAsTheArtistPageAsksThem() {
+        answer("""{"data":{"artistUnion":{"__typename":"Artist","uri":"spotify:artist:a1","profile":{"name":"Neon Harbour",
+            "externalLinks":{"items":[{"name":"INSTAGRAM","url":"https://instagram.com/neonharbour"},{"name":"WEBSITE","url":"https://neonharbour.example/"},{"name":"BAD","url":"javascript:alert(1)"}]}},
+            "goods":{"merch":{"items":[{"name":"Tee","url":"https://shop.neonharbour.example/products/tee"},{"name":"Tee again","url":"https://shop.neonharbour.example/products/tee"}]}}}}}""")
+        val sites = web.artistSites("spotify:artist:a1")
+        assertEquals("spotify:artist:a1", sites.uri)
+        assertEquals(listOf("https://instagram.com/neonharbour", "https://neonharbour.example/"), sites.links)
+        assertEquals(listOf("https://shop.neonharbour.example/products/tee"), sites.merch)
+        val sent = BridgeMock.calls.last { it.host() == "api-partner.spotify.com" }.json()
+        assertEquals("queryArtistOverview", sent["operationName"].str)
+        assertEquals(SpotifyWebClient.SHIPPED_HASHES["queryArtistOverview"], sent["extensions"]["persistedQuery"]["sha256Hash"].str)
+        assertEquals("spotify:artist:a1", sent["variables"]["uri"].str)
+        // An answer without the artist is an error, not "no site".
+        answer("""{"data":{"somethingElse":{}}}""")
+        try { web.artistSites("spotify:artist:a1"); fail() } catch (e: BridgeException) { assertTrue(e.message!!.contains("queryArtistOverview")) }
+    }
+
+    @Test fun anArtistTheSearchDoesNotKnowHasNoUri() {
+        answer("""{"data":{"searchV2":{"artists":{"items":[{"data":{"__typename":"Artist","uri":"spotify:artist:x0","profile":{"name":"Someone Else"}}}]}}}}""")
+        assertNull(web.artistUri("Neon Harbour"))
+    }
+
+    @Test fun concertsInAnAnswerOfAnotherShapeAreAnErrorNotAnEmptyList() {
+        answer("""{"data":{"concerts":{"concerts":{"items":[{"data":{"id":"renamed"}}]}}}}""")
+        try { web.concerts("spotify:artist:a1"); fail() } catch (e: BridgeException) { assertTrue(e.message!!.contains("ArtistConcerts")) }
+    }
+
+    @Test fun topSongsInAnAnswerOfAnotherShapeAreAnErrorNotAnEmptyList() {
+        answer("""{"data":{"me":{"profile":{"topTracks":{"__typename":"TrackPageV2","items":[{"data":{"__typename":"Track","title":"renamed field"}}]}}}}}""")
+        try { web.top("SHORT_TERM"); fail() } catch (e: BridgeException) { assertTrue(e.message!!.contains("userTopContent")) }
     }
 }

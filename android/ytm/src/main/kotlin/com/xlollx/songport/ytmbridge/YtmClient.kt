@@ -43,7 +43,8 @@ class YtmClient(private val host: YtmHost) {
      * account, whose quota is what triggers the frequent 403s during a long sync.
      */
     private fun call(endpoint: String, body: Map<String, Any?> = emptyMap(), query: String = "", auth: Boolean = true): JsonElement {
-        val ck = if (auth) cookies() else null
+        // The session's cookies: replaced once by a renewed session when a 401 refuses them (see [YtmHost.renewSession]).
+        var ck = if (auth) cookies() else null
         val v = visitor(ck)
         val payload = jsonObj(
             "context" to mapOf(
@@ -74,24 +75,29 @@ class YtmClient(private val host: YtmHost) {
             "Accept-Language" to "en-US,en;q=0.9",
         ).apply {
             v.visitorData?.let { put("X-Goog-Visitor-Id", it) }
-            if (ck != null) { put("Authorization", YtmAuth.authorization(ck)); put("X-Goog-AuthUser", "0") }
+            ck?.let { put("Authorization", YtmAuth.authorization(it)); put("X-Goog-AuthUser", "0") }
             if (ck != null) channel?.let { put("X-Goog-PageId", it) }
         }
         val body = payload.toString()
-        val req = Request.Builder()
+        fun request(cookies: String?) = Request.Builder()
             .url(YtmAuth.ORIGIN + path)
             .post(body.toRequestBody(JSON_TYPE))
             .apply { apiHeaders.forEach { (k, v2) -> header(k, v2) } }
             // Consent cookie only, as a visitor who dismissed the cookie banner.
-            .header("Cookie", ck ?: ANON_COOKIES)
+            .header("Cookie", cookies ?: ANON_COOKIES)
             .header("Origin", YtmAuth.ORIGIN)
             .header("Referer", "${YtmAuth.ORIGIN}/")
             .header("User-Agent", host.userAgent)
             .build()
         // The web interface throttles bursts (403/429): pace the calls, slow down further after each
         // refusal, and retry once after a short pause. Longer waits are Trackhop's job, which shows
-        // them to the user as a countdown. A 401 is a dead session, no point retrying.
+        // them to the user as a countdown. A 401 is a session Google no longer takes: renewed once
+        // where the host can (the player's page, as a browser left open does), the call made once
+        // more, and only then the session is said to be gone.
         var attempt = 0
+        var renewed = false
+        // The retry after a renewal: its outcome goes to the log once.
+        var retrying = false
         val lane = if (auth) SESSION_LANE else ANON_LANE
         while (true) {
             // Google's block lifts only when the requests stop: while it lasts nothing goes out, and
@@ -108,37 +114,56 @@ class YtmClient(private val host: YtmHost) {
             val web = host.web
             val viaWeb = web?.usable() == true
             val r = if (viaWeb) runCatching { web!!.post(path, body, apiHeaders, credentials = ck != null) }.getOrNull() else null
-            val (code, text) = if (r != null) r.code to r.body else http.newCall(req).execute().use { resp -> resp.code to (resp.body?.string() ?: "") }
-            run {
-                Stats.record(auth, code, System.currentTimeMillis() - t0, text, viaWeb && r != null)
-                // Google's abuse page: the browser was redirected to it. That address, opened by the user
-                // in a visible WebView, lets them pass the verification that lifts the block.
-                if ((code == 403 || code == 429) && text.contains("<title>Sorry", true)) Verification.noticed(host.verification, text)
-                when {
-                    code == 401 -> throw BridgeException("YouTube Music rejected the session (401): ${host.signInAgain}")
-                    code == 403 || code == 429 -> {
-                        lane.slowDown()
-                        // A refusal can also mean a stale visitor id: refresh it before the retry.
-                        invalidateVisitor(auth)
-                        // A signed-in call is retried once after a pause; an anonymous one is not, its
-                        // caller falls back to the session at once instead of paying the pause per search.
-                        if (auth && attempt < 1) { Thread.sleep(3_000); attempt++ }
-                        else {
-                            val reason = Regex(""""message"\s*:\s*"([^"]{1,160})"""").find(text)?.groupValues?.get(1)
-                                ?: if (text.contains("<title>Sorry", true)) "Google's abuse detection page" else text.replace(Regex("\\s+"), " ").trim().take(120).ifBlank { null }
-                            val who = if (auth) "signed-in" else "anonymous"
-                            val advice = if (Verification.pending(host.verification)) "Google blocked this network address; it lifts only if requests stop. Retry in ${Verification.remainingSeconds(host.verification)} s" +
-                                    (host.blockedHint?.let { ". $it" } ?: "")
-                                else "Trackhop will wait and retry; if it persists, ${host.signInAgain}"
-                            throw Throttled(
-                                "YouTube Music refused the $who request ($code): too many requests" +
-                                    (reason?.let { " [$it]" } ?: "") + ". " + advice,
-                            )
+            val (code, text) = if (r != null) r.code to r.body else http.newCall(request(ck)).execute().use { resp -> resp.code to (resp.body?.string() ?: "") }
+            Stats.record(auth, code, System.currentTimeMillis() - t0, text, viaWeb && r != null)
+            // Google's abuse page: the browser was redirected to it. That address, opened by the user
+            // in a visible WebView, lets them pass the verification that lifts the block.
+            if ((code == 403 || code == 429) && text.contains("<title>Sorry", true)) Verification.noticed(host.verification, text)
+            if (retrying && code != 401) {
+                retrying = false
+                host.log("session refused (401); renewed and retried: ${if (code in 200..299) "ok" else "HTTP $code"}")
+            }
+            when {
+                code == 401 -> {
+                    val refused = ck
+                    if (refused != null && !renewed && host.canRenew) {
+                        renewed = true
+                        val fresh = runCatching { host.renewSession(refused) }.getOrNull()
+                        if (fresh != null && YtmAuth.sapisid(fresh) != null) {
+                            // The same call with the renewed cookies and a SAPISIDHASH made of them.
+                            ck = fresh
+                            apiHeaders["Authorization"] = YtmAuth.authorization(fresh)
+                            retrying = true
+                            continue
                         }
-                    }
-                    code !in 200..299 -> throw BridgeException("YouTube Music $code: ${text.take(200)}")
-                    else -> { lane.speedUp(); return parseJson(text) }
+                        // Why it was not renewed is the host's to say (one line), then the call fails as it always has;
+                        // unless the renewal's page could not load: the connection, not a session to sign in again.
+                        host.renewalLostConnection()?.let { throw BridgeException("YouTube Music: the session could not be renewed ($it)") }
+                    } else if (retrying) host.log("session refused (401); renewed and retried: failed")
+                    throw BridgeException("YouTube Music rejected the session (401): ${host.signInAgain}")
                 }
+                code == 403 || code == 429 -> {
+                    lane.slowDown()
+                    // A refusal can also mean a stale visitor id: refresh it before the retry.
+                    invalidateVisitor(auth)
+                    // A signed-in call is retried once after a pause; an anonymous one is not, its
+                    // caller falls back to the session at once instead of paying the pause per search.
+                    if (auth && attempt < 1) { Thread.sleep(3_000); attempt++ }
+                    else {
+                        val reason = Regex(""""message"\s*:\s*"([^"]{1,160})"""").find(text)?.groupValues?.get(1)
+                            ?: if (text.contains("<title>Sorry", true)) "Google's abuse detection page" else text.replace(Regex("\\s+"), " ").trim().take(120).ifBlank { null }
+                        val who = if (auth) "signed-in" else "anonymous"
+                        val advice = if (Verification.pending(host.verification)) "Google blocked this network address; it lifts only if requests stop. Retry in ${Verification.remainingSeconds(host.verification)} s" +
+                                (host.blockedHint?.let { ". $it" } ?: "")
+                            else "Trackhop will wait and retry; if it persists, ${host.signInAgain}"
+                        throw Throttled(
+                            "YouTube Music refused the $who request ($code): too many requests" +
+                                (reason?.let { " [$it]" } ?: "") + ". " + advice,
+                        )
+                    }
+                }
+                code !in 200..299 -> throw BridgeException("YouTube Music $code: ${text.take(200)}")
+                else -> { lane.speedUp(); return parseJson(text) }
             }
         }
     }
@@ -351,7 +376,18 @@ class YtmClient(private val host: YtmHost) {
 
     // ------------------------------------------------------------------ tracks
 
-    fun tracks(playlistId: String): List<TrackDto> {
+    fun tracks(playlistId: String): List<TrackDto> = listing(playlistId, null)
+
+    /**
+     * The entries of [playlistId] holding [videoIds] (with their set id, which a removal needs), page
+     * after page from the start, stopping as soon as each wanted video has turned up.
+     */
+    fun findEntries(playlistId: String, videoIds: Set<String>): List<TrackDto> =
+        listing(playlistId, videoIds).filter { it.id in videoIds }
+
+    /** The playlist's entries; with [wanted], only until each of them has turned up (no check of the count then). */
+    private fun listing(playlistId: String, wanted: Set<String>?): List<TrackDto> {
+        val missing = wanted?.let { HashSet(it) }
         val out = LinkedHashMap<String, TrackDto>()
         var resp = call("browse", mapOf("browseId" to browseIdOf(playlistId)))
         // The size the page's header states ("2,084 songs"), to tell a listing cut short from a whole one.
@@ -368,14 +404,16 @@ class YtmClient(private val host: YtmHost) {
                 // The same video can appear twice in a playlist: key by set id when we have one.
                 val key = t.setVideoId ?: t.id
                 if (out.putIfAbsent(key, t) == null) added++
+                missing?.remove(t.id)
             }
+            if (missing != null && missing.isEmpty()) return out.values.toList()
             val next = continuationOf(shelf) ?: break
             if (added == 0 || ++pages > 300) break
             resp = continueBrowse(next)
         }
         // Under half of what the header states: a page left out or sent in another layout. Returned as
         // is, it would read as an emptied playlist, and a sync would write everything to it again.
-        if (declared >= SHORT_LISTING_MIN && out.size * 2 < declared) {
+        if (wanted == null && declared >= SHORT_LISTING_MIN && out.size * 2 < declared) {
             throw BridgeException("YouTube Music listed ${out.size} of the $declared songs of this playlist: try again in a while")
         }
         return out.values.toList()
@@ -458,6 +496,39 @@ class YtmClient(private val host: YtmHost) {
         return out.values.toList()
     }
 
+    /**
+     * Followed podcasts: the "Podcasts" tab of the library, as ytmusicapi's get_library_podcasts reads
+     * it (browse FEmusic_library_non_music_audio_list, a grid of two-row items). Only the shows, whose
+     * page is MPSP + the show's playlist id: the grid's "Add podcast" tile and the "New episodes" auto
+     * playlist (VLRDPN) are left out. Read only: following a show from here is not documented.
+     */
+    fun libraryPodcasts(): List<TrackDto> {
+        val out = LinkedHashMap<String, TrackDto>()
+        var resp = call("browse", mapOf("browseId" to "FEmusic_library_non_music_audio_list"))
+        var pages = 0
+        while (true) {
+            var added = 0
+            for (item in resp.findAll("musicTwoRowItemRenderer")) {
+                val t = podcastRow(item) ?: continue
+                if (out.putIfAbsent(t.id, t) == null) added++
+            }
+            val scope = resp.findFirst("gridRenderer") ?: resp.findFirst("gridContinuation") ?: resp.findFirst("onResponseReceivedActions")
+            val next = continuationOf(scope) ?: break
+            if (added == 0 || ++pages > 50) break
+            resp = continueBrowse(next)
+        }
+        return out.values.toList()
+    }
+
+    private fun podcastRow(item: JsonElement): TrackDto? {
+        val browseId = item["title"]["runs"][0]["navigationEndpoint"]["browseEndpoint"]["browseId"].str
+            ?: item["navigationEndpoint"]["browseEndpoint"]["browseId"].str ?: return null
+        if (!browseId.startsWith("MPSP") || browseId.length <= 4) return null
+        val title = item["title"].runsText() ?: return null
+        val publisher = item["subtitle"]["runs"][0]["text"].str?.trim()?.takeIf { it.isNotEmpty() }
+        return TrackDto(browseId.removePrefix("MPSP"), title, listOfNotNull(publisher), uri = browseId, kind = "podcast")
+    }
+
     /** Subscribed artists: the "Artists" tab of the library, subscriptions only. */
     fun librarySubscriptions(): List<TrackDto> {
         val out = LinkedHashMap<String, TrackDto>()
@@ -515,9 +586,38 @@ class YtmClient(private val host: YtmHost) {
         }
     }
 
+    /** Follows or unfollows podcasts: a "like" on the show's playlist, the id [libraryPodcasts] gives (MPSP + it is the page). */
+    fun savePodcasts(ids: List<String>, on: Boolean) {
+        ids.forEach { call(if (on) "like/like" else "like/removelike", mapOf("target" to mapOf("playlistId" to it.removePrefix("MPSP")))) }
+    }
+
     fun subscribeArtists(channelIds: List<String>, on: Boolean) {
         if (channelIds.isEmpty()) return
-        channelIds.chunked(20).forEach { call(if (on) "subscription/subscribe" else "subscription/unsubscribe", mapOf("channelIds" to it)) }
+        if (on) { channelIds.chunked(20).forEach { call("subscription/subscribe", mapOf("channelIds" to it)) }; return }
+        // Unfollowing goes one by one: in a batch, one id refused (400) took all the others with it.
+        val refused = ArrayList<String>()
+        var last: Exception? = null
+        for (id in channelIds) {
+            try { unsubscribe(id) } catch (e: BridgeException) { refused += id; last = e }
+        }
+        if (refused.isEmpty()) return
+        host.log("unsubscribe: ${channelIds.size - refused.size} of ${channelIds.size} done; refused ${refused.joinToString(",")}: ${last?.message?.take(160)}")
+        throw BridgeException("YouTube Music did not unfollow ${refused.size} of ${channelIds.size} artists (${last?.message?.take(80)})")
+    }
+
+    /**
+     * One artist, by the id the library gave; on a 400, by the channel the artist page's Subscribe
+     * button names, which can be another one than the page's own id.
+     */
+    private fun unsubscribe(id: String) {
+        try {
+            call("subscription/unsubscribe", mapOf("channelIds" to listOf(id)))
+        } catch (e: BridgeException) {
+            if (e.message?.startsWith("YouTube Music 400") != true) throw e
+            val other = call("browse", mapOf("browseId" to id)).findFirst("subscribeButtonRenderer")?.get("channelId").str
+            if (other == null || other == id) throw e
+            call("subscription/unsubscribe", mapOf("channelIds" to listOf(other)))
+        }
     }
 
     /** An album row (library grid or search list): browse id MPREb..., title, artists, year, playlist id when present. */
@@ -586,6 +686,67 @@ class YtmClient(private val host: YtmHost) {
             mapOf("playlistId" to playlistId.removePrefix("VL"), "actions" to listOf(mapOf("action" to "ACTION_SET_PLAYLIST_PRIVACY", "playlistPrivacy" to if (public) "PUBLIC" else "PRIVATE"))),
         )
         checkStatus(resp)
+    }
+
+    /**
+     * A playlist's own picture, set as the player's "Edit" sets it: the image goes up by Google's
+     * resumable upload to [THUMBNAIL_UPLOAD] (the page's address for it), which answers an encrypted
+     * blob id; `edit_playlist` then makes it the playlist's custom thumbnail, under the image key the
+     * playlist page names ([THUMBNAIL_KEY]). YouTube Music wants it square, at least 360 px.
+     */
+    fun setCover(playlistId: String, jpeg: ByteArray) {
+        val blob = uploadThumbnail(jpeg)
+        val resp = call(
+            "browse/edit_playlist",
+            mapOf("playlistId" to playlistId.removePrefix("VL"), "actions" to listOf(mapOf(
+                "action" to "ACTION_SET_CUSTOM_THUMBNAIL",
+                "addedCustomThumbnail" to mapOf(
+                    "imageKey" to mapOf("type" to "PLAYLIST_IMAGE_TYPE_CUSTOM_THUMBNAIL", "name" to THUMBNAIL_KEY),
+                    "playlistScottyEncryptedBlobId" to blob,
+                ),
+            ))),
+        )
+        checkStatus(resp)
+    }
+
+    /** The upload of [setCover]: through the browser engine where there is one, else plain HTTP; the blob id it answers. */
+    private fun uploadThumbnail(jpeg: ByteArray): String {
+        val ck = cookies()
+        val auth = linkedMapOf("Authorization" to YtmAuth.authorization(ck), "X-Goog-AuthUser" to "0")
+        channel?.let { auth["X-Goog-PageId"] = it }
+        SESSION_LANE.pace()
+        val web = host.web
+        val viaWeb = if (web?.usable() == true) runCatching { web.upload(THUMBNAIL_UPLOAD, jpeg, auth, UPLOAD_TYPE) }.getOrNull() else null
+        val (code, text) = viaWeb?.let { it.code to it.body } ?: uploadOverHttp(ck, jpeg, auth)
+        if (code !in 200..299) throw BridgeException("YouTube Music image upload: HTTP $code ${text.take(160)}".trim())
+        return runCatching { parseJson(text) }.getOrNull()["encryptedBlobId"].str
+            ?: throw BridgeException("YouTube Music image upload: no blob id in the answer")
+    }
+
+    private fun uploadOverHttp(ck: String, jpeg: ByteArray, auth: Map<String, String>): Pair<Int, String> {
+        val type = UPLOAD_TYPE.toMediaType()
+        fun request(url: String) = Request.Builder().url(url)
+            .apply { auth.forEach { (k, v) -> header(k, v) } }
+            .header("Cookie", ck)
+            .header("Origin", YtmAuth.ORIGIN)
+            .header("Referer", "${YtmAuth.ORIGIN}/")
+            .header("User-Agent", host.userAgent)
+        val start = request(YtmAuth.ORIGIN + THUMBNAIL_UPLOAD).post(ByteArray(0).toRequestBody(type))
+            .header("X-Goog-Upload-Command", "start")
+            .header("X-Goog-Upload-Protocol", "resumable")
+            .header("X-Goog-Upload-Header-Content-Length", jpeg.size.toString())
+            .build()
+        val at = http.newCall(start).execute().use { r ->
+            if (!r.isSuccessful) return r.code to (r.body?.string() ?: "")
+            r.header("X-Goog-Upload-URL")
+        } ?: throw BridgeException("YouTube Music image upload: no upload address")
+        // Only to the site itself: the address carries the session's cookies.
+        if (!at.startsWith(YtmAuth.ORIGIN + "/")) throw BridgeException("YouTube Music image upload: an upload address outside the site")
+        val upload = request(at).post(jpeg.toRequestBody(type))
+            .header("X-Goog-Upload-Command", "upload, finalize")
+            .header("X-Goog-Upload-Offset", "0")
+            .build()
+        return http.newCall(upload).execute().use { r -> r.code to (r.body?.string() ?: "") }
     }
 
     /**
@@ -740,6 +901,12 @@ class YtmClient(private val host: YtmHost) {
         // Same parameters as the songs filter with the type nibble set to videos (ytmusicapi: I -> Q).
         private const val VIDEOS_FILTER = "EgWKAQIQAWoMEA4QChADEAQQCRAF"
         private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
+        /** Where the playlist page uploads a playlist's picture (its image editor's `scottyUploadUrl`). */
+        const val THUMBNAIL_UPLOAD = "/playlist_image_upload/playlist_custom_thumbnail"
+        /** The image key the playlist page's editor names for a playlist's own picture. */
+        const val THUMBNAIL_KEY = "studio_square_thumbnail"
+        /** The type the player's upload requests carry, the image's bytes included. */
+        private const val UPLOAD_TYPE = "application/x-www-form-urlencoded;charset=utf-8"
         private val DURATION = Regex("^\\d{1,2}(:\\d{2}){1,2}$")
     }
 }

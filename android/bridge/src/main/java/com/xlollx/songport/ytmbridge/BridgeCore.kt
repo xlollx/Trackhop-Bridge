@@ -8,18 +8,39 @@ import kotlinx.serialization.encodeToString
 /**
  * The connectors' methods, the same the Trackhop Bridge app answers through its ContentProvider
  * (`status`, `playlists`, `tracks`, `search`, `add`, `amazon.*`, `spotify.*`, `apple.*`, `deezer.*`,
- * `soundcloud.*`, `anghami.*`, `qobuz.*`...), called by
- * Trackhop in-process. No caller check is needed: nothing outside this app can reach it.
+ * `soundcloud.*`, `anghami.*`, `qobuz.*`, `ticketone.read`, `vivaticket.read`...), called by
+ * Trackhop in-process. No caller check is needed: nothing outside this app can reach it. The two
+ * methods that hand out the sessions themselves (`sessions.export`, `sessions.import`, Trackhop's
+ * encrypted backup) check their caller anyway, wherever this runs ([SessionTransfer.callerOk]).
  * Callers block, so this is never called on the main thread.
  */
 object BridgeCore {
     /** Reported as "version" by the status calls: the built-in connectors have every feature. */
     const val VERSION = 1000
     const val PAGE = 400
+    /** The extra of the `setCover` methods: the playlist's picture, a JPEG. */
+    const val COVER = "jpeg"
     /** Trackhop's ids for the library objects, the same on every connector. */
     const val ALBUMS = "__albums__"
     const val ARTISTS = "__artists__"
+    const val PURCHASED = "__purchased__"
     const val RECENT = "__recent__"
+    /** Followed podcasts on YouTube Music: read, followed and unfollowed (a like on the show's playlist). */
+    const val PODCASTS = "__podcasts__"
+    /** Saved albums and followed artists on the older skill API: none mapped. */
+    private const val AMAZON_NO_PURCHASED = "Amazon Music: purchased music is not available for this account's player (the older skill API)"
+    private const val AMAZON_NO_LIBRARY = "Amazon Music: saved albums and followed artists are not available for this account's player (the older skill API)"
+
+    /**
+     * Saves or removes Amazon Music albums ([ALBUMS]), follows or unfollows artists ([ARTISTS]), one at
+     * a time as the player does; returns the ids Amazon did not confirm.
+     */
+    private fun amazonLibrary(ctx: Context, kind: String, ids: Array<String>, on: Boolean): List<String> =
+        AmazonRoute.run(ctx, { c ->
+            ids.filterNot { id ->
+                (if (kind == ALBUMS) c.setAlbumSaved(id, saved = on) else c.setArtistFollowed(id, follow = on)).also { Thread.sleep(150) }
+            }
+        }, { throw BridgeException(AMAZON_NO_LIBRARY) })
 
     /** The services whose extra accounts ([Slots]) this answers; the others serve one account. */
     private val SLOT_SERVICES = setOf("", "spotify", "apple", "deezer", "anghami", "qobuz", "liveone")
@@ -36,8 +57,12 @@ object BridgeCore {
         // The account the call is about: absent (every Trackhop before 1.15) means the primary one.
         val slot = Slots.of(extras)
         if (slot.isNotEmpty() && serviceOf(method) !in SLOT_SERVICES) return err(ONE_ACCOUNT)
+        // The sessions themselves, for Trackhop's encrypted backup: their own caller check (see [SessionTransfer]).
+        if (method == SessionTransfer.EXPORT || method == SessionTransfer.IMPORT) return SessionTransfer.call(ctx, method, extras)
         // "Start over": the disconnect, then the sites' stored data too (see [WebReset]).
         if (method.endsWith(".reset")) return runCatching { reset(ctx, method, arg, extras, slot) }.getOrElse { err(it.message ?: it.javaClass.simpleName) }
+        // A listing asked for fresh (the poster made again from scratch): the one kept for it goes first.
+        if (arg != null && extras?.getBoolean("fresh") == true && extras.getInt("offset") == 0) dropListing(method, arg, slot)
         return try {
             val client = YtmClient(ctx, slot)
             val ytm = Session.forSlot(slot)
@@ -52,6 +77,17 @@ object BridgeCore {
                     ytm.channel(ctx)?.let { putString("channel", it); putString("channelName", ytm.channelName(ctx)) }
                 }
                 "disconnect" -> { ytm.clear(ctx); Bundle() }
+                // Trackhop's background keep-alive: the player's page run once so Google rotates the
+                // session's cookies (see [YtmRenewal]), and whether the session is gone. An older
+                // connector answers "unknown method", which Trackhop ignores.
+                "keepAlive" -> {
+                    val outcome = YtmRenewal.keepAlive(ctx, slot)
+                    Bundle().apply {
+                        putBoolean("renewed", outcome == YtmRenewal.Outcome.RENEWED)
+                        putBoolean("connected", ytm.isConnected(ctx))
+                        putBoolean("expired", outcome == YtmRenewal.Outcome.SIGNED_OUT)
+                    }
+                }
                 // The channels the account can act as; the chosen one is marked by the stored choice, not by Google's switcher.
                 "channels" -> {
                     val chosen = ytm.channel(ctx).orEmpty()
@@ -79,6 +115,14 @@ object BridgeCore {
                         if (offset + PAGE < all.size) putInt("next", offset + PAGE)
                     }
                 }
+                // The entries holding some tracks (a removal needs their set ids): from the listing read a
+                // moment ago when there is one, otherwise read only until they have all turned up.
+                "find" -> {
+                    val id = arg ?: return err("missing playlist id")
+                    val ids = extras?.getStringArray("ids")?.toSet() ?: emptySet()
+                    val listed = freshTracks(id, slot) ?: if (id.startsWith("__")) cachedTracks(client, id, slot) else null
+                    ok(json.encodeToString(listed?.filter { it.id in ids } ?: client.findEntries(id, ids)))
+                }
                 "search" -> {
                     val kind = extras?.getString("kind")
                     ok(json.encodeToString(if (kind == "album" || kind == "artist") client.searchKind(arg ?: "", kind) else client.search(arg ?: "", extras?.getBoolean("videos") == true)))
@@ -88,6 +132,10 @@ object BridgeCore {
                 "audio.recognize" -> ok(AudioRecognition.recognize(ctx, arg ?: return err("missing address"))?.let {
                     jsonObj("title" to it.title, "artist" to it.artist, "album" to it.album, "isrc" to it.isrc).toString()
                 } ?: "{}")
+                // A page of TicketOne read in a browser engine out of sight, for Concerts (see [TicketOnePage]).
+                "ticketone.read" -> ok(TicketOnePage.read(ctx, arg ?: return err("missing address")))
+                // An answer of Vivaticket's gateway, for Concerts in the builds that do not ask it themselves (see [VivaticketRead]).
+                "vivaticket.read" -> VivaticketRead.read(arg ?: return err("missing address"), extras)
                 "log" -> Bundle().apply { putString("log", BridgeNet.recent(extras?.getInt("lines")?.takeIf { it > 0 } ?: 300)) }
                 "create" -> ok(json.encodeToString(client.createPlaylist(extras?.getString("name") ?: "Playlist", extras?.getString("description") ?: "")))
                 "add" -> {
@@ -97,6 +145,7 @@ object BridgeCore {
                     val elsewhere = when (id) {
                         ALBUMS -> { client.rateAlbums(ids, extras?.getStringArray("uris")?.toList() ?: emptyList(), like = true); emptySet() }
                         ARTISTS -> { client.subscribeArtists(ids, on = true); emptySet() }
+                        PODCASTS -> { client.savePodcasts(ids, on = true); emptySet() }
                         else -> client.addTracks(id, ids)
                     }
                     invalidate(id, slot)
@@ -105,6 +154,8 @@ object BridgeCore {
                 "rename" -> { client.renamePlaylist(arg ?: return err("missing playlist id"), extras?.getString("name") ?: ""); Bundle() }
                 "delete" -> { client.deletePlaylist(arg ?: return err("missing playlist id")); invalidate(arg, slot); Bundle() }
                 "visibility" -> { client.setPrivacy(arg ?: return err("missing playlist id"), extras?.getBoolean("public") ?: false); Bundle() }
+                // A playlist's picture (extra `jpeg`: square, at least 360 px). An older connector answers "unknown method": no cover.
+                "setCover" -> { client.setCover(arg ?: return err("missing playlist id"), extras?.getByteArray(COVER) ?: return err("missing image")); Bundle() }
                 "reorder" -> {
                     val pid = arg ?: return err("missing playlist id")
                     val items = extras?.getStringArray("items") ?: emptyArray()
@@ -118,6 +169,7 @@ object BridgeCore {
                     when (id) {
                         ALBUMS -> client.rateAlbums(extras?.getStringArray("ids")?.toList() ?: emptyList(), extras?.getStringArray("uris")?.toList() ?: emptyList(), like = false)
                         ARTISTS -> client.subscribeArtists(extras?.getStringArray("ids")?.toList() ?: emptyList(), on = false)
+                        PODCASTS -> client.savePodcasts(extras?.getStringArray("ids")?.toList() ?: emptyList(), on = false)
                         else -> client.removeTracks(id, json.decodeFromString<List<RemoveItem>>(extras?.getString("json") ?: "[]"))
                     }
                     invalidate(id, slot)
@@ -133,9 +185,23 @@ object BridgeCore {
                 }
                 "amazon.disconnect" -> { AmazonSession.clear(ctx); Bundle() }
                 // GraphQL for most accounts; the older skill API for the players still on it (issue #35).
-                "amazon.search" -> ok(json.encodeToString(AmazonRoute.run(ctx, { it.searchTracks(arg ?: "") }, { it.searchTracks(arg ?: "") })))
+                // Albums (kind "album", for saved albums) from the albums search, artists (kind "artist", for
+                // followed artists) from the artists search; the skill API has neither mapped: nothing rather
+                // than songs that share their name.
+                "amazon.search" -> ok(json.encodeToString(
+                    when (extras?.getString("kind")) {
+                        "album" -> AmazonRoute.run(ctx, { it.searchAlbums(arg ?: "") }, { emptyList() })
+                        "artist" -> AmazonRoute.run(ctx, { it.searchArtists(arg ?: "") }, { emptyList() })
+                        else -> AmazonRoute.run(ctx, { it.searchTracks(arg ?: "") }, { it.searchTracks(arg ?: "") })
+                    },
+                ))
                 "amazon.tracks" -> {
                     val id = arg ?: return err("missing playlist id")
+                    // ALBUMS, ARTISTS: the saved albums, the followed artists (GraphQL only; Trackhop asks from Bridge 1.11.0 on).
+                    if (id == ALBUMS) return ok(json.encodeToString(AmazonRoute.run(ctx, { it.savedAlbums() }, { throw BridgeException(AMAZON_NO_LIBRARY) })))
+                    if (id == ARTISTS) return ok(json.encodeToString(AmazonRoute.run(ctx, { it.followedArtists() }, { throw BridgeException(AMAZON_NO_LIBRARY) })))
+                    // PURCHASED: the purchased music, read only (GraphQL only; Trackhop lists it where "amazon.purchased" answers).
+                    if (id == PURCHASED) return ok(json.encodeToString(AmazonRoute.run(ctx, { it.purchasedTracks() }, { throw BridgeException(AMAZON_NO_PURCHASED) })))
                     ok(json.encodeToString(AmazonRoute.run(ctx, { it.playlistTracks(id) }, { it.playlistTracks(id) })))
                 }
                 "amazon.playlists" -> ok(json.encodeToString(AmazonRoute.run(ctx, { it.libraryPlaylists() }, { it.libraryPlaylists() })))
@@ -147,6 +213,14 @@ object BridgeCore {
                     val pid = arg ?: return err("missing playlist id")
                     val ids = extras?.getStringArray("ids") ?: emptyArray()
                     val titles = extras?.getStringArray("titles") ?: emptyArray()
+                    // ALBUMS, ARTISTS: each album saved ("liked"), each artist followed; one Amazon does not
+                    // confirm fails the call, so it is never counted as added.
+                    if (pid == ALBUMS || pid == ARTISTS) {
+                        val refused = amazonLibrary(ctx, pid, ids, on = true)
+                        val what = if (pid == ALBUMS) "save ${refused.size} of ${ids.size} albums" else "follow ${refused.size} of ${ids.size} artists"
+                        if (refused.isNotEmpty()) return err("Amazon Music did not $what (${refused.take(5).joinToString()})")
+                        return Bundle().apply { putStringArray("duplicates", emptyArray()) }
+                    }
                     // Tracks Amazon refused as already in the playlist: Trackhop counts them as present, not added.
                     val duplicates = AmazonRoute.run(ctx,
                         { c -> ids.filterNot { id -> c.addTrack(pid, id).also { Thread.sleep(150) } } },
@@ -154,10 +228,16 @@ object BridgeCore {
                     )
                     Bundle().apply { putStringArray("duplicates", duplicates.toTypedArray()) }
                 }
+                // Whether the purchased music can be read here: "count", the tracks on its first page (0: nothing bought).
+                "amazon.purchased" -> Bundle().apply {
+                    putInt("count", AmazonRoute.run(ctx, { it.purchasedFirstPage() }, { throw BridgeException(AMAZON_NO_PURCHASED) }))
+                }
+                // The skill API's rename where the account is on it, as before; on GraphQL (and where the skill API
+                // fails and GraphQL was seen) the GraphQL player's updatePlaylistDetails.
                 "amazon.rename" -> {
                     val id = arg ?: return err("missing playlist id")
-                    if (AmazonSession.api(ctx) != AmazonRoute.SKILL) return err("Amazon Music: renaming is not available in the current web player")
-                    AmazonSkillClient(ctx).renamePlaylist(id, extras?.getString("name") ?: ""); Bundle()
+                    val name = extras?.getString("name") ?: ""
+                    AmazonRoute.run(ctx, { it.renamePlaylist(id, name) }, { it.renamePlaylist(id, name) }); Bundle()
                 }
                 "amazon.delete" -> {
                     val id = arg ?: return err("missing playlist id")
@@ -172,6 +252,10 @@ object BridgeCore {
                     val pid = arg ?: return err("missing playlist id")
                     val ids = extras?.getStringArray("ids") ?: emptyArray()
                     val entries = extras?.getStringArray("entryIds") ?: emptyArray()
+                    // ALBUMS, ARTISTS: each album un-liked, each artist unfollowed; the ones Amazon did not confirm go back as "kept".
+                    if (pid == ALBUMS || pid == ARTISTS) {
+                        return Bundle().apply { putStringArray("kept", amazonLibrary(ctx, pid, ids, on = false).toTypedArray()) }
+                    }
                     // Checked against the playlist afterwards: the entries Amazon still lists go back
                     // as "kept", and Trackhop counts them as not removed. GraphQL removes by cursor,
                     // highest index first; the skill API by trackEntryId.
@@ -204,8 +288,32 @@ object BridgeCore {
                         if (offset + PAGE < all.size) putInt("next", offset + PAGE)
                     }
                 }
+                "spotify.find" -> {
+                    val id = arg ?: return err("missing playlist id")
+                    val ids = extras?.getStringArray("ids")?.toSet() ?: emptySet()
+                    val listed = freshSpotify(id, slot) ?: if (id.startsWith("__")) cachedSpotifyTracks(ctx, id, slot) else null
+                    ok(json.encodeToString(listed?.filter { it.id in ids } ?: SpotifyWebClient(ctx, slot).findEntries(id, ids)))
+                }
                 "spotify.search" -> ok(json.encodeToString(SpotifyWebClient(ctx, slot).search(arg ?: "", extras?.getString("kind"))))
                 "spotify.track" -> ok(json.encodeToString(SpotifyWebClient(ctx, slot).track(arg ?: return err("missing track id"))))
+                // What the user plays most, as the player's profile shows it; arg: SHORT_TERM, MID_TERM or LONG_TERM.
+                "spotify.top" -> ok(json.encodeToString(SpotifyWebClient(ctx, slot).top(arg ?: "SHORT_TERM")))
+                // An artist's upcoming concerts on Spotify (arg: the artist's name; [] when the search finds no artist of
+                // that name), and one concert's venue and country (arg: its uri). Concerts' Spotify source, unofficial.
+                "spotify.concerts" -> {
+                    val c = SpotifyWebClient(ctx, slot)
+                    ok(json.encodeToString(c.artistUri(arg ?: return err("missing artist"))?.let { c.concerts(it) } ?: emptyList()))
+                }
+                // What the artist's page says of their own site (arg: the artist's name; null when the search finds no
+                // artist of that name): its links and its merch shelf. Merch's and Concerts' look for the official site.
+                "spotify.artist" -> {
+                    val c = SpotifyWebClient(ctx, slot)
+                    ok(json.encodeToString(c.artistUri(arg ?: return err("missing artist"))?.let { c.artistSites(it) }))
+                }
+                // The player's "What's new": the latest releases of the artists followed on Spotify (read only;
+                // never marked as seen). Followed artists' alerts take them as one more source.
+                "spotify.whatsNew" -> ok(kotlinx.serialization.json.JsonArray(SpotifyWebClient(ctx, slot).whatsNew().map { it.toJson() }).toString())
+                "spotify.concert" -> ok(json.encodeToString(SpotifyWebClient(ctx, slot).concert(arg ?: return err("missing concert"))))
                 "spotify.create" -> ok(json.encodeToString(SpotifyWebClient(ctx, slot).createPlaylist(extras?.getString("name") ?: "Playlist", extras?.getString("description") ?: "")))
                 "spotify.add" -> {
                     val id = arg ?: return err("missing playlist id")
@@ -230,6 +338,7 @@ object BridgeCore {
                 }
                 "spotify.rename" -> { SpotifyWebClient(ctx, slot).renamePlaylist(arg ?: return err("missing playlist id"), extras?.getString("name") ?: ""); Bundle() }
                 "spotify.delete" -> { SpotifyWebClient(ctx, slot).deletePlaylist(arg ?: return err("missing playlist id")); invalidateSpotify(arg, slot); Bundle() }
+                "spotify.setCover" -> { SpotifyWebClient(ctx, slot).setCover(arg ?: return err("missing playlist id"), extras?.getByteArray(COVER) ?: return err("missing image")); Bundle() }
                 "spotify.visibility" -> { SpotifyWebClient(ctx, slot).setPublic(arg ?: return err("missing playlist id"), extras?.getBoolean("public") ?: false); Bundle() }
                 "spotify.reorder" -> {
                     val pid = arg ?: return err("missing playlist id")
@@ -350,6 +459,12 @@ object BridgeCore {
                     val all = qobuzCache.get(ck(slot, id)) { val c = QobuzWebClient(ctx, slot); if (id == LIKED) c.liked() else c.tracks(id) }
                     paged(json.encodeToString(all.drop(extras?.getInt("offset") ?: 0).take(PAGE)), all.size, extras?.getInt("offset") ?: 0)
                 }
+                "qobuz.find" -> {
+                    val id = arg ?: return err("missing playlist id")
+                    val ids = extras?.getStringArray("ids")?.toSet() ?: emptySet()
+                    val listed = qobuzCache.peek(ck(slot, id)) ?: if (id == LIKED) qobuzCache.get(ck(slot, id)) { QobuzWebClient(ctx, slot).liked() } else null
+                    ok(json.encodeToString(listed?.filter { it.id in ids } ?: QobuzWebClient(ctx, slot).findEntries(id, ids)))
+                }
                 "qobuz.search" -> ok(json.encodeToString(QobuzWebClient(ctx, slot).search(arg ?: "", extras?.getString("isrc"))))
                 "qobuz.create" -> ok(json.encodeToString(QobuzWebClient(ctx, slot).create(extras?.getString("name") ?: "Playlist", extras?.getString("description") ?: "", extras?.getBoolean("public") ?: false)))
                 "qobuz.add", "qobuz.remove" -> {
@@ -424,69 +539,70 @@ object BridgeCore {
                 }
                 "soundcloud.rename" -> { SoundCloudWebClient(ctx).rename(arg ?: return err("missing playlist id"), extras?.getString("name") ?: ""); Bundle() }
                 "soundcloud.visibility" -> { SoundCloudWebClient(ctx).setPublic(arg ?: return err("missing playlist id"), extras?.getBoolean("public") ?: false); Bundle() }
+                "soundcloud.setCover" -> { SoundCloudWebClient(ctx).setArtwork(arg ?: return err("missing playlist id"), extras?.getByteArray(COVER) ?: return err("missing image")); Bundle() }
                 "soundcloud.delete" -> { SoundCloudWebClient(ctx).delete(arg ?: return err("missing playlist id")); soundCloudCache.invalidate(arg); Bundle() }
                 else -> err("unknown method $method")
             }
         } catch (e: Exception) {
-            err(e.message ?: e.javaClass.simpleName).apply {
+            err(NetWords.of(e)).apply {
                 // A SoundCloud session found gone: since when, so Trackhop tells it once.
                 if (method.startsWith("soundcloud.")) SoundCloudRenewal.expiredAt(ctx)?.let { putString("expiredAt", it) }
             }
         }
     }
 
-    // A playlist is fetched once and served in pages (Binder transactions are capped at ~1 MB).
-    private var lastTracks: Triple<String, Long, List<TrackDto>>? = null
+    // A playlist is fetched once and served in pages (Binder transactions are capped at ~1 MB): see [ListCache].
+    private val ytmCache = ListCache<TrackDto>()
 
     /** A cache key that tells the accounts apart: the same playlist id in two slots is two listings. */
     private fun ck(slot: String, id: String): String = if (slot.isEmpty()) id else "$slot@$id"
 
     @Synchronized
     private fun cachedTracks(client: YtmClient, id: String, slot: String): List<TrackDto> {
-        val now = System.currentTimeMillis()
-        val key = ck(slot, id)
-        lastTracks?.let { (pid, at, list) -> if (pid == key && now - at < 120_000) return list }
-        val list = when (id) { ALBUMS -> client.libraryAlbums(); ARTISTS -> client.librarySubscriptions(); RECENT -> client.history(); else -> client.tracks(id) }
-        lastTracks = Triple(key, now, list)
-        return list
+        return ytmCache.get(ck(slot, id)) {
+            when (id) { ALBUMS -> client.libraryAlbums(); ARTISTS -> client.librarySubscriptions(); PODCASTS -> client.libraryPodcasts(); RECENT -> client.history(); else -> client.tracks(id) }
+        }
     }
 
     @Synchronized
-    private fun invalidate(id: String, slot: String) { if (lastTracks?.first == ck(slot, id)) lastTracks = null }
+    private fun freshTracks(id: String, slot: String): List<TrackDto>? = ytmCache.peek(ck(slot, id))
 
-    private var lastSpotify: Triple<String, Long, List<TrackDto>>? = null
+    @Synchronized
+    private fun freshSpotify(id: String, slot: String): List<TrackDto>? = spotifyCache.peek(ck(slot, id))
+
+    @Synchronized
+    private fun invalidate(id: String, slot: String) { ytmCache.invalidate(ck(slot, id)) }
+
+    private val spotifyCache = ListCache<TrackDto>()
 
     @Synchronized
     private fun cachedSpotifyTracks(ctx: Context, id: String, slot: String): List<TrackDto> {
-        val now = System.currentTimeMillis()
-        val key = ck(slot, id)
-        lastSpotify?.let { (pid, at, list) -> if (pid == key && now - at < 120_000) return list }
-        val c = SpotifyWebClient(ctx, slot)
-        val list = when (id) {
-            "__liked__" -> c.likedTracks()
-            "__albums__" -> c.libraryItems("album")
-            "__artists__" -> c.libraryItems("artist")
-            else -> c.playlistTracks(id)
+        return spotifyCache.get(ck(slot, id)) {
+            val c = SpotifyWebClient(ctx, slot)
+            when (id) {
+                "__liked__" -> c.likedTracks()
+                "__albums__" -> c.libraryItems("album")
+                "__artists__" -> c.libraryItems("artist")
+                else -> c.playlistTracks(id)
+            }
         }
-        lastSpotify = Triple(key, now, list)
-        return list
     }
 
     @Synchronized
-    private fun invalidateSpotify(id: String, slot: String) { if (lastSpotify?.first == ck(slot, id)) lastSpotify = null }
+    private fun invalidateSpotify(id: String, slot: String) { spotifyCache.invalidate(ck(slot, id)) }
 
     private const val LIKED = "__liked__"
 
-    /** One listing at a time, fetched once and served in pages for two minutes; a write to it drops it. */
-    private class ListCache<T> {
-        private var last: Triple<String, Long, List<T>>? = null
-        @Synchronized fun get(id: String, load: () -> List<T>): List<T> {
-            val now = System.currentTimeMillis()
-            last?.let { (pid, at, list) -> if (pid == id && now - at < 120_000) return list }
-            return load().also { last = Triple(id, now, it) }
+    /** Drops the listing kept for [id] by [method]'s connector (a `tracks` read), so the next page 0 reads it again. */
+    private fun dropListing(method: String, id: String, slot: String) {
+        when (method) {
+            "tracks" -> invalidate(id, slot)
+            "spotify.tracks" -> invalidateSpotify(id, slot)
+            "deezer.tracks" -> deezerCache.invalidate(ck(slot, id))
+            "anghami.tracks" -> anghamiCache.invalidate(ck(slot, id))
+            "qobuz.tracks" -> qobuzCache.invalidate(ck(slot, id))
+            "soundcloud.tracks" -> soundCloudCache.invalidate(id)
         }
-        @Synchronized fun invalidate(id: String) { if (last?.first == id) last = null }
-        @Synchronized fun clear() { last = null }
     }
 
     private val deezerCache = ListCache<TrackDto>()
@@ -503,6 +619,23 @@ object BridgeCore {
 
     private fun ok(jsonText: String) = Bundle().apply { putString("json", jsonText) }
     private fun err(message: String) = Bundle().apply { putString("error", message) }
+
+    /**
+     * Forgets what is kept in memory for [service]'s [slot] (listings, tokens, the player's page) once
+     * its session was replaced by one from a backup ([SessionTransfer]), as a disconnect does.
+     */
+    internal fun forgetCached(service: String, slot: String) {
+        runCatching {
+            when (service) {
+                "ytm" -> ytmCache.clear()
+                "spotify" -> { SpotifyBridge.invalidateToken(slot); spotifyCache.clear() }
+                "deezer" -> { DeezerWebClient.forget(slot); deezerCache.clear() }
+                "anghami" -> { anghamiCache.clear(); WebEngine.reset("anghami", slot) }
+                "qobuz" -> qobuzCache.clear()
+                "soundcloud" -> { SoundCloudBridge.forgetWebStorage(); SoundCloudRenewal.forget(); soundCloudCache.clear() }
+            }
+        }
+    }
 
     /** The web connectors a start over applies to, with the session of [slot]. YouTube Music and Amazon are not among them. */
     fun resettable(service: String, slot: String): WebSession? = when (service) {

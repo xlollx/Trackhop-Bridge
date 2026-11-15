@@ -305,20 +305,24 @@ class SpotifyWebClient(private val host: Host) {
             .header("User-Agent", host.userAgent)
     }
 
-    /** One persisted query. GraphQL errors and a refused write (HTTP 200, a failure typename) both throw. */
-    fun gql(operation: String, variables: JsonObject, retry: Boolean = true): JsonElement {
+    /**
+     * One persisted query. GraphQL errors and a refused write (HTTP 200, a failure typename) both throw.
+     * [url]: the gateway, [PATHFINDER] but for an operation that may want the player's newer one.
+     * [harvest] false: a hash Spotify does not know is an error, without reading the player's bundle.
+     */
+    fun gql(operation: String, variables: JsonObject, retry: Boolean = true, url: String = PATHFINDER, harvest: Boolean = true): JsonElement {
         if (operation.startsWith("search")) paceSearch()
         val body = jsonObj(
             "variables" to variables,
             "operationName" to operation,
             "extensions" to jsonObj("persistedQuery" to jsonObj("version" to 1, "sha256Hash" to hashFor(operation))),
         )
-        val req = headers(Request.Builder().url(PATHFINDER).post(body.toString().toRequestBody(JSON))).header("Content-Type", "application/json").build()
+        val req = headers(Request.Builder().url(url).post(body.toString().toRequestBody(JSON))).header("Content-Type", "application/json").build()
         val (code, text, wait) = send(req)
         val j = runCatching { parseJson(text) }.getOrNull() ?: JsonNull
         val errors = j["errors"].arr.mapNotNull { it["message"].str }
-        if (code == 401 && retry) { host.bearerRefused(); return gql(operation, variables, retry = false) }
-        if (errors.any { it.contains("PersistedQueryNotFound", true) } && retry) {
+        if (code == 401 && retry) { host.bearerRefused(); return gql(operation, variables, retry = false, url = url, harvest = harvest) }
+        if (errors.any { it.contains("PersistedQueryNotFound", true) } && retry && harvest) {
             hashFor(operation, forceHarvest = true)
             return gql(operation, variables, retry = false)
         }
@@ -335,7 +339,7 @@ class SpotifyWebClient(private val host: Host) {
         if (code >= 500 && retry) {
             BridgeNet.log("spotify", "$operation: HTTP $code, trying once more" + (lastClientTokenError?.let { " (no client token: $it)" } ?: ""))
             Thread.sleep(2_000)
-            return gql(operation, variables, retry = false)
+            return gql(operation, variables, retry = false, url = url, harvest = harvest)
         }
         if (code !in 200..299 && errors.isEmpty()) throw BridgeException("Spotify $operation: HTTP $code ${text.take(200)}" + (lastClientTokenError?.let { " (no client token: $it)" } ?: ""))
         if (errors.isNotEmpty()) throw BridgeException("Spotify $operation: ${errors.joinToString("; ").take(300)}")
@@ -513,6 +517,34 @@ class SpotifyWebClient(private val host: Host) {
         return out
     }
 
+    /**
+     * The entries of playlist [id] holding [trackIds] (with their uid, which a removal needs), read
+     * from the end, where a sync adds its tracks: the first entries and the total, then a hundred at
+     * a time from the last back, stopping as soon as each wanted track has turned up.
+     */
+    fun findEntries(id: String, trackIds: Set<String>): List<TrackDto> {
+        val missing = HashSet(trackIds)
+        val out = ArrayList<TrackDto>()
+        fun read(offset: Int, limit: Int): Int {
+            val content = gql("fetchPlaylist", jsonObj("uri" to "spotify:playlist:$id", "offset" to offset, "limit" to limit, "enableWatchFeedEntrypoint" to false))["data"]["playlistV2"]["content"]
+            for (it in content["items"].arr) {
+                val d = it["itemV2"]["data"] ?: it["item"]["data"]
+                val uri = it["itemV2"]["_uri"].str ?: it["item"]["_uri"].str
+                val t = trackDto(d, it["uid"].str, it["addedAt"]["isoString"].str, uri) ?: continue
+                if (t.id in trackIds) { out += t; missing -= t.id }
+            }
+            return content["totalCount"].long?.toInt() ?: 0
+        }
+        val first = 50
+        var end = read(0, first)
+        while (missing.isNotEmpty() && end > first) {
+            val start = maxOf(first, end - 100)
+            read(start, end - start)
+            end = start
+        }
+        return out
+    }
+
     /** An entry that is a track (not a local file or an episode) and still did not parse: the page shape moved. */
     private fun isTrackItem(d: JsonElement?, outerUri: String?) = (d["uri"].str ?: outerUri)?.startsWith("spotify:track:") == true
 
@@ -550,6 +582,131 @@ class SpotifyWebClient(private val host: Host) {
         }
         checkReadable("fetchLibraryTracks", out.size, broken)
         return out
+    }
+
+    /**
+     * The songs and artists the user played most in [timeRange] (SHORT_TERM about four weeks,
+     * MID_TERM six months, LONG_TERM a year), as the player's own profile page asks for them
+     * ("Top tracks this month", visible only to the user): the persisted query `userTopContent`,
+     * with the variables the player's profile route sends, read off its bundle
+     * (xpui-routes-profile, 11/2026) and seen in a capture of the player: the profile asks 10 artists
+     * and 4 songs, its "Show all" pages 100 of one kind (the other with `include…` false and a limit
+     * of 0); here both at once, 100 each. A ranking (sortBy AFFINITY), no counts.
+     */
+    fun top(timeRange: String, limit: Int = 100): TopDto {
+        val input = { n: Int -> jsonObj("offset" to 0, "limit" to n, "sortBy" to "AFFINITY", "timeRange" to timeRange) }
+        val j = gql("userTopContent", jsonObj(
+            "includeTopArtists" to true, "topArtistsInput" to input(limit),
+            "includeTopTracks" to true, "topTracksInput" to input(limit),
+        ))
+        return parseTop(j)
+    }
+
+    // ---- what's new
+
+    /** A release of the player's "What's new" feed: the album's uri, name, type (ALBUM, SINGLE, EP…), day and artists. */
+    data class FeedRelease(val uri: String, val name: String, val type: String, val date: String, val artists: List<String>) {
+        fun toJson(): JsonObject = jsonObj("uri" to uri, "name" to name, "type" to type, "date" to date, "artists" to JsonArray(artists.map { JsonPrimitive(it) }))
+    }
+
+    /**
+     * The player's "What's new" (the bell): the latest releases of the artists the user follows on
+     * Spotify, one page of 50, newest first, with the variables the player sends (11/2026 capture).
+     * Only read: its other operation, SetItemsStateInWhatsNewFeed, marks items as seen and is never
+     * sent. The player asks it of `pathfinder/v2`; the same body and headers go to v1 first, as
+     * every other call here, and to v2 only when v1 refuses it. Never reads the player's bundle for
+     * its hash: it is a helper, not worth tens of megabytes.
+     */
+    fun whatsNew(): List<FeedRelease> {
+        val vars = jsonObj(
+            "offset" to 0, "limit" to 50, "onlyUnPlayedItems" to false,
+            "includedContentTypes" to JsonArray(emptyList()), "includeEpisodeContentRatingsV2" to true,
+        )
+        val j = try {
+            gql(WHATS_NEW, vars, harvest = false)
+        } catch (e: BridgeException) {
+            if (e.message?.contains("slow down") == true) throw e
+            gql(WHATS_NEW, vars, url = PATHFINDER_V2, harvest = false)
+        }
+        return parseWhatsNew(j)
+    }
+
+    /** `data.whatsNewFeedItems.items[].content.data`: albums only (an episode or anything else is left out). */
+    internal fun parseWhatsNew(j: JsonElement?): List<FeedRelease> {
+        val feed = j["data"]["whatsNewFeedItems"]
+        if (feed !is JsonObject) unexpected(WHATS_NEW, j ?: JsonNull, emptyList(), j["data"])
+        return feed["items"].arr.mapNotNull { item ->
+            val d = item["content"]["data"]
+            val uri = d["uri"].str?.takeIf { it.startsWith("spotify:album:") } ?: return@mapNotNull null
+            val name = d["name"].str?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            FeedRelease(
+                uri = uri, name = name, type = d["albumType"].str ?: "ALBUM",
+                date = d["date"]["isoString"].str?.take(10).orEmpty(),
+                artists = d["artists"]["items"].arr.mapNotNull { it["profile"]["name"].str?.takeIf { n -> n.isNotBlank() } },
+            )
+        }.distinctBy { it.uri }
+    }
+
+    // ---- concerts
+
+    /**
+     * The uri of the artist the player's search finds under [name] (case and accents aside), the
+     * first such; null when it finds none of that name.
+     */
+    fun artistUri(name: String): String? {
+        val want = sameName(name)
+        if (want.isEmpty()) return null
+        return search(name, "artist").firstOrNull { sameName(it.title) == want }?.uri
+    }
+
+    /**
+     * The artist's upcoming concerts, as their page's tour section lists them: `ArtistConcerts`,
+     * with the variables the artist route sends (xpui-routes-artist, 11/2026) less the "near you"
+     * part (`includeNearby` false, as for a visitor). Date and city only: [concert] has the rest.
+     */
+    fun concerts(artistUri: String): List<ConcertDto> =
+        parseConcerts(gql("ArtistConcerts", jsonObj("artistUri" to artistUri, "geoHash" to JsonNull, "includeNearby" to false)))
+
+    /** `data.concerts.concerts.items[].data`: each a concert with its uri, title, start and city. */
+    internal fun parseConcerts(j: JsonElement?): List<ConcertDto> {
+        val items = j["data"]["concerts"]["concerts"]["items"].arr
+        val out = items.mapNotNull { concertDto(it["data"]) }
+        if (out.isEmpty() && items.isNotEmpty()) unexpected("ArtistConcerts", j ?: JsonNull, items)
+        return out
+    }
+
+    /**
+     * One concert's page (`concert`, as the concert route asks it for a signed-in user): its venue,
+     * city and country. Null when the answer holds no concert.
+     */
+    fun concert(uri: String): ConcertDto? = concertDto(gql("concert", jsonObj("uri" to uri, "authenticated" to true))["data"]["concert"])
+
+    private fun concertDto(d: JsonElement?): ConcertDto? {
+        val uri = d["uri"].str?.takeIf { it.startsWith("spotify:concert:") } ?: return null
+        val start = d["startDateIsoString"].str?.takeIf { it.length >= 10 } ?: return null
+        val at = d["location"]
+        return ConcertDto(
+            uri = uri, title = d["title"].str.orEmpty(), start = start,
+            city = at["city"].str.orEmpty(), venue = at["name"].str.orEmpty(),
+            country = at["country"].str?.trim()?.uppercase()?.takeIf { it.length == 2 }.orEmpty(),
+            festival = (d["festival"] as? JsonPrimitive)?.content == "true",
+        )
+    }
+
+    /**
+     * What the artist's page says of their own site: `queryArtistOverview`, as the artist route asks it
+     * (xpui-routes-artist, 11/2026), its About section's links (`profile.externalLinks`) and the
+     * addresses of the merch on its shelf (`goods.merch`). An answer without the artist is an error.
+     */
+    fun artistSites(artistUri: String): ArtistSitesDto =
+        parseArtistSites(artistUri, gql("queryArtistOverview", jsonObj("uri" to artistUri, "locale" to "", "includePrerelease" to true)))
+
+    internal fun parseArtistSites(artistUri: String, j: JsonElement?): ArtistSitesDto {
+        val a = j["data"]["artistUnion"]
+        if (a["profile"] == null) unexpected("queryArtistOverview", j ?: JsonNull, emptyList(), a)
+        val links = a["profile"]["externalLinks"]["items"].arr.mapNotNull { it["url"].str?.takeIf { u -> u.startsWith("https://") || u.startsWith("http://") } }
+        val merch = a["goods"]["merch"]["items"].arr.mapNotNull { it["url"].str?.takeIf { u -> u.startsWith("https://") || u.startsWith("http://") } }
+        return ArtistSitesDto(a["uri"].str ?: artistUri, links.distinct(), merch.distinct())
     }
 
     /** Catalogue search, the player's: tracks, or albums or artists for [kind]. */
@@ -651,6 +808,34 @@ class SpotifyWebClient(private val host: Host) {
     }
 
     /**
+     * A playlist's picture, set the way the player's "Edit details" sets it: the JPEG goes to
+     * image-upload.spotify.com as it is (bearer and client token), which answers an upload token;
+     * the playlist store registers that token for the playlist and answers the picture's id; a
+     * change of the playlist's attributes then makes it the picture.
+     */
+    fun setCover(id: String, jpeg: ByteArray, retry: Boolean = true) {
+        val ct = clientToken()
+        val req = Request.Builder().url(IMAGE_UPLOAD).post(jpeg.toRequestBody(JPEG))
+            .header("Authorization", "Bearer ${host.bearer()}")
+            .apply { if (ct != null) header("client-token", ct) }
+            .header("Accept", "application/json")
+            .header("Origin", "https://open.spotify.com").header("Referer", "https://open.spotify.com/")
+            .header("User-Agent", host.userAgent)
+            .build()
+        val (code, text, wait) = send(req)
+        if (code == 401 && retry) { host.bearerRefused(); return setCover(id, jpeg, retry = false) }
+        if (code == 429) throw BridgeException("Spotify asks to slow down (429, retry in $wait s)")
+        if (code !in 200..299) throw BridgeException("Spotify image upload: HTTP $code" + text.take(200).let { if (it.isBlank()) "" else " $it" })
+        val token = runCatching { parseJson(text) }.getOrNull()["uploadToken"].str
+            ?: throw BridgeException("Spotify image upload: no upload token in the answer")
+        val picture = spclient("/playlist/v2/playlist/$id/register-image", jsonObj("uploadToken" to token))["picture"].str
+            ?: throw BridgeException("Spotify: the playlist store did not register the picture")
+        spclient("/playlist/v2/playlist/$id/changes", deltas(jsonObj(
+            "kind" to 6, "updateListAttributes" to jsonObj("newAttributes" to jsonObj("values" to jsonObj("picture" to picture), "noValue" to emptyList<String>())),
+        )))
+    }
+
+    /**
      * Public means shown on the profile: the `public` attribute of the playlist's entry in the
      * rootlist, which is what the Web API's `public` flag sets too. The entry's position is needed
      * for the change, so the rootlist is read first.
@@ -731,6 +916,26 @@ class SpotifyWebClient(private val host: Host) {
         )
     }
 
+    /**
+     * `data.me.profile.topTracks` (TrackPageV2) and `topArtists` (ArtistPageV2): each item's `data`
+     * is a Track (or an Artist), as the profile page reads them.
+     */
+    internal fun parseTop(j: JsonElement?): TopDto {
+        val profile = j["data"]["me"]["profile"]
+        val tracks = profile["topTracks"]["items"].arr.mapNotNull { it ->
+            val d = it["data"]
+            if (d["__typename"].str?.let { t -> t != "Track" } == true) return@mapNotNull null
+            trackDto(d, null, null, it["_uri"].str ?: d["id"].str?.let { id -> "spotify:track:$id" })
+        }
+        val artists = profile["topArtists"]["items"].arr.mapNotNull { it["data"]["profile"]["name"].str?.takeIf { n -> n.isNotBlank() } }
+        if (tracks.isEmpty() && profile["topTracks"]["items"].arr.isNotEmpty()) unexpected("userTopContent", j ?: JsonNull, profile["topTracks"]["items"].arr, profile["topTracks"])
+        return TopDto(tracks, artists)
+    }
+
+    /** A name compared as the search's results are: case, accents and spacing aside. */
+    private fun sameName(s: String): String =
+        java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD).replace(MARKS, "").lowercase().replace(SPACES, " ").trim()
+
     private fun albumDto(d: JsonElement?, addedAt: String?): TrackDto? {
         val uri = d["uri"].str ?: return null
         if (!uri.startsWith("spotify:album:")) return null
@@ -756,6 +961,8 @@ class SpotifyWebClient(private val host: Host) {
         /** Writes that add: never sent a second time after an answer that leaves their outcome unknown (#42). */
         private val NOT_REPEATED = setOf("addToPlaylist")
         private const val OUTCOME_UNKNOWN = "outcome unknown"
+        private val MARKS = Regex("\\p{M}+")
+        private val SPACES = Regex("\\s+")
         /**
          * Searches spaced out, about three a second across every client of the process: a burst of
          * them makes Spotify block for half an hour (issue #30), a steady pace does not.
@@ -774,6 +981,9 @@ class SpotifyWebClient(private val host: Host) {
         }
 
         const val PATHFINDER = "https://api-partner.spotify.com/pathfinder/v1/query"
+        /** The gateway the player itself asks since 11/2026: tried for [WHATS_NEW] only, when v1 refuses it. */
+        const val PATHFINDER_V2 = "https://api-partner.spotify.com/pathfinder/v2/query"
+        const val WHATS_NEW = "queryWhatsNewFeed"
         /** open.spotify.com's own client id, unchanged for years; the page is read first all the same. */
         const val WEB_PLAYER_CLIENT_ID = "d8a5ed958d274c2e8ee717e6a4b0971d"
         const val DEFAULT_APP_VERSION = "1.2.70.0"
@@ -792,7 +1002,10 @@ class SpotifyWebClient(private val host: Host) {
             else "Spotify did not hand out a token: $error" + if (error.contains("sign in", true)) "" else " (trying again shortly)"
         @Volatile private var lastClientTokenError: String? = null
         const val SPCLIENT = "https://spclient.wg.spotify.com"
+        /** Where the player sends a playlist's picture before the playlist store registers it. */
+        const val IMAGE_UPLOAD = "https://image-upload.spotify.com/v4/playlist"
         private val JSON = "application/json".toMediaType()
+        private val JPEG = "image/jpeg".toMediaType()
         val SESSION_SCRIPT = Regex("""<script[^>]*id="session"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
         val SERVER_CONFIG = Regex("""<script[^>]*id="appServerConfig"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
         /** `"fetchPlaylist","query","<sha256>"`: how the player's bundles name their persisted queries. */
@@ -808,6 +1021,15 @@ class SpotifyWebClient(private val host: Host) {
             "searchTracks" to "b02683192a98dde7966b5e6655a79eeb62713eab703eda9902c932818dd52751",
             "searchDesktop" to "eef7cc54888d91bdd6802623477873caa3948ae173a0c34fd86827b267e94c03",
             "getTrack" to "e7b1bf4e95cb3d733d48b442f93006e9712fd504e8b88d7a82e6e3bac9306a6b",
+            // The profile route's top songs and artists (xpui-routes-profile, web-player.d8d10126).
+            "userTopContent" to "61b7353d3625780022dbc63d459eb64cd609e7e5e2a820f9160d65030efe2e15",
+            // The artist page's tour section and a concert's page (xpui-routes-artist, xpui-routes-concert).
+            "ArtistConcerts" to "ef53c43b865496b9890b7167eab1dc614a8949ef9451b3c41184ea888de8bd2b",
+            "concert" to "9b582a69061f6648858515c2aa6d4a2273ac49b74eb5dbc612bc1299a9f2f13e",
+            // The artist page itself (web-player.78b0eb3c): its About links and merch shelf, for the artist's own site.
+            "queryArtistOverview" to "eafb1620d783ece118e72fbfede2b0064483e029d3c1aafafa1c2de0e25a89e7",
+            // The bell's "What's new" (11/2026 capture, pathfinder v2). Its document also holds SetItemsStateInWhatsNewFeed, never sent.
+            "queryWhatsNewFeed" to "d889c8c936ab192af8ced595427f5ba2acdf63478fdc0a181c8d477f8322630e",
             "profileAttributes" to "08ffb4730af3746e04a8301396f20875dbbce10c75243803091a9274eacc8ac0",
             "addToPlaylist" to "b907ad6b088d5bf7680fa81198996d58398c2d55dfcdf59fcc959e0be98a418a",
             "removeFromPlaylist" to "b907ad6b088d5bf7680fa81198996d58398c2d55dfcdf59fcc959e0be98a418a",
