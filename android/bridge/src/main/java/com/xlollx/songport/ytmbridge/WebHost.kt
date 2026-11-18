@@ -25,10 +25,39 @@ interface WebHost {
      * so no session ever reads another's.
      */
     val cacheScope: String get() = slot
+    /**
+     * Renews the session the service refused ([refused]: the token it was refused with) without the
+     * person, the way the connector's site renews its own (a hidden page of it), and keeps the new
+     * one. True when there is a new session to make the call again with. Never clears anything.
+     * Default: no renewal (the server, a connector without one).
+     */
+    fun renewSession(refused: String?): Boolean = false
 
     companion object {
         /** The value of cookie [name] in a `Cookie` header; null when absent or empty. */
         fun cookieValue(cookies: String?, name: String): String? = cookies?.split(';')
             ?.map { it.trim() }?.firstOrNull { it.startsWith("$name=") }?.substringAfter('=')?.takeIf { it.isNotEmpty() }
+    }
+}
+
+/**
+ * [call], made again once with a renewed session ([WebHost.renewSession]) when the service refused
+ * the one it carried: [refused] tells such a failure, [sent] is the session the call went with
+ * (null: none, nothing to renew). Not renewed, or refused again: [expired] ("sign in again"), as
+ * before. A refusal means the service did nothing, so a write is safe to make again too. [tag]: the log's.
+ */
+fun <T> WebHost.renewing(tag: String, sent: String?, expired: String, refused: (Exception) -> Boolean, call: () -> T): T {
+    try {
+        return call()
+    } catch (e: Exception) {
+        if (!refused(e)) throw e
+        if (sent == null || !renewSession(sent)) throw BridgeException(expired)
+    }
+    return try {
+        call().also { BridgeNet.log(tag, "session refused; access renewed and the call made again: ok") }
+    } catch (e: Exception) {
+        if (!refused(e)) throw e
+        BridgeNet.log(tag, "session refused; access renewed and the call made again: refused again")
+        throw BridgeException(expired)
     }
 }
