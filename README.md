@@ -13,7 +13,14 @@ YouTube Music, Amazon Music, Spotify, Apple Music, Deezer, SoundCloud, LiveOne a
 </p>
 
 <p align="center">
-  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/xlollx/Trackhop-Bridge"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" height="64" alt="Get it on Obtainium"></a>
+  <a href="https://github.com/xlollx/Trackhop-Bridge/releases/latest"><img src="docs/badges/github.svg" height="56" alt="Download the latest APK from GitHub"></a>
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/xlollx/Trackhop-Bridge"><img src="docs/badges/obtainium.svg" height="56" alt="Get it on Obtainium"></a>
+</p>
+
+<p align="center">
+  <sub>For Trackhop from Google Play or AppGallery:</sub><br>
+  <a href="https://play.google.com/store/apps/details?id=com.xlollx.songport"><img src="docs/badges/play.svg" height="44" alt="Trackhop on Google Play"></a>
+  <a href="https://appgallery.huawei.com/app/C119677919"><img src="docs/badges/appgallery.svg" height="44" alt="Trackhop on AppGallery"></a>
 </p>
 
 Trackhop Bridge is the connector plugin for [Trackhop](https://github.com/xlollx/Trackhop): it gives
@@ -83,7 +90,7 @@ their first sign-in, since it now names them.
 ## Install
 
 1. Download the latest APK (`TrackhopBridge-vX.Y.Z.apk`) from the
-   [Releases](https://github.com/xlollx/Trackhop-Bridge/releases) page, or add
+   [latest release](https://github.com/xlollx/Trackhop-Bridge/releases/latest), or add
    `https://github.com/xlollx/Trackhop-Bridge` to [Obtainium](https://github.com/ImranR98/Obtainium),
    which then keeps it updated.
 2. Install it (Android asks once to allow installs from your browser, file manager or Obtainium).
