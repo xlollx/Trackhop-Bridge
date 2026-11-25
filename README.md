@@ -57,11 +57,11 @@ its other services, and keep a playlist sync running, without developer accounts
 
 | Service | What it adds | Official route in Trackhop |
 |---------|--------------|----------------------------|
-| YouTube Music | playlists, liked songs, search, create, add, remove, reorder, rename, delete, without a Google Cloud project and without quota | YouTube Data API v3 with your own key (10,000 units/day) |
+| YouTube Music | playlists, liked songs, search, create, add, remove, reorder, rename, delete, without a Google Cloud project and without quota; with several profiles (brand channels), how much music each one holds, to pick the right one (from 1.13.0) | YouTube Data API v3 with your own key (10,000 units/day) |
 | Amazon Music | playlists, search, create, add, remove, delete | none: Amazon's Web API is a closed beta for approved partners |
 | Spotify | your playlists through the web player, without registering a developer app and without Premium | OAuth with your own client ID |
 | Apple Music | sign-in without the Apple Developer Program | MusicKit with your own developer token (99 €/year) |
-| Deezer (alpha, from 1.5.0) | playlists with ISRCs, favourite tracks, search, create, add, remove, rename, delete, without a developer app | OAuth with your own app ID, for those who still have one: Deezer no longer registers new apps |
+| Deezer (alpha, from 1.5.0) | playlists with ISRCs, favourite tracks, search, create, add, remove, rename, delete, without a developer app; on a Family plan, the profile to use (from 1.13.0) | OAuth with your own app ID, for those who still have one: Deezer no longer registers new apps |
 | SoundCloud (alpha, from 1.5.0) | your sets and liked tracks, search, create, add, remove, reorder, rename, public/private, delete; public set links too | none: SoundCloud's API no longer takes new registrations |
 | LiveOne (alpha, from 1.6.0) | the presets of a free account (as liked songs), search, add | none: LiveOne has no public API |
 | Anghami (alpha, from 1.6.0) | playlists and liked songs, search, create, add, remove, rename, delete | none: Anghami has no public API |
