@@ -128,7 +128,7 @@ jobs:
 
       - name: GitHub Release
         if: ${{ steps.rel.outputs.tag != '' }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
           target_commitish: ${{ github.sha }}
