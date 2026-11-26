@@ -1,9 +1,12 @@
-# Deletes the branches whose changes are all already in a base branch (main by default), by hand only.
+# Deletes the branches whose changes are all already in a base branch (main by default): by hand, and on
+# its own every Sunday (leaving branches touched in the last 7 days: a new branch looks merged).
 # main and the base itself are always kept; a branch with any change the base lacks is kept too.
 # "Already in" means merged, or the same changes applied there by another commit (git cherry).
 name: Prune merged branches
 
 on:
+  schedule:
+    - cron: '47 4 * * 0'
   workflow_dispatch:
     inputs:
       base:
@@ -27,13 +30,16 @@ jobs:
           fetch-depth: 0
       - name: Delete branches already in the base
         env:
-          BASE: ${{ inputs.base }}
-          DRY: ${{ inputs.dry_run }}
+          BASE: ${{ inputs.base || 'main' }}
+          DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          MIN_AGE_DAYS: ${{ github.event_name == 'schedule' && '7' || '0' }}
         run: |
           git fetch --prune origin
           git rev-parse --verify "origin/$BASE" >/dev/null
           for b in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin); do
             case "$b" in HEAD|main|gh-pages|"$BASE") continue;; esac
+            age=$(( ( $(date +%s) - $(git log -1 --format=%ct "origin/$b") ) / 86400 ))
+            if [ "$age" -lt "$MIN_AGE_DAYS" ]; then echo "kept (touched $age days ago): $b"; continue; fi
             if git merge-base --is-ancestor "origin/$b" "origin/$BASE" || ! git cherry "origin/$BASE" "origin/$b" | grep -q '^+'; then
               echo "already in $BASE: $b"
               [ "$DRY" = "true" ] || git push origin --delete "$b"
