@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Trackhop itself (syncs, matching, the app, Desktop, Docker)
+    url: https://github.com/xlollx/Trackhop/issues/new/choose
+    about: Problems that are not about a Bridge connector belong in the Trackhop repository.
+  - name: A question or an idea
+    url: https://github.com/xlollx/Trackhop/discussions
+    about: Asked and answered in Trackhop Discussions.
+  - name: Security issue
+    url: https://github.com/xlollx/Trackhop-Bridge/security/advisories/new
+    about: Please report vulnerabilities privately, not as a public issue.

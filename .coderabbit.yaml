@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit reviews the pull requests into main. android/bridge and android/ytm are copies of
+# Trackhop's modules, reviewed there: left out here, with images.
+language: en-US
+early_access: false
+reviews:
+  profile: chill
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  path_filters:
+    - "!android/bridge/**"
+    - "!android/ytm/**"
+    - "!docs/**"
+    - "!**/*.png"
+    - "!**/*.webp"
+    - "!**/*.jpg"
+  path_instructions:
+    - path: "android/app/**/*.kt"
+      instructions: >-
+        Sessions, tokens and cookies must never reach logs, crash reports, shared files or an app other
+        than Trackhop signed with the same key: flag any path that could. Network and file work stays
+        off the main thread.
+    - path: "android/app/src/main/res/values*/strings.xml"
+      instructions: >-
+        Every user-visible string exists in all the app's languages: flag a string added or changed in
+        one language and missing or stale in another.
+chat:
+  auto_reply: true

@@ -1,0 +1,14 @@
+# Weekly updates of the GitHub Actions used by the workflows. App libraries (Gradle) are updated by
+# hand, together with Trackhop's (android/bridge and android/ytm are copies): no automatic PRs for them
+# (security alerts still arrive).
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
