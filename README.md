@@ -251,7 +251,9 @@ creates the tag and publishes the APK as a GitHub Release. To release, bump `ver
 Open an issue with Trackhop's diagnostics report (Trackhop: Settings → Sync log → "Share technical
 details") and the Bridge version. For Amazon Music, the Capture traffic screen produces exactly what
 is needed to fix a changed method. The fix itself goes into Trackhop (`android/bridge`,
-`android/ytm`), then comes here with a sync.
+`android/ytm`), then comes here with a sync. Questions and ideas go to
+[Trackhop Discussions](https://github.com/xlollx/Trackhop/discussions); a security problem to a
+[private report](https://github.com/xlollx/Trackhop-Bridge/security/advisories/new).
 
 ## License
 
