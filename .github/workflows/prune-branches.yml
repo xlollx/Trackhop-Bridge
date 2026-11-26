@@ -1,0 +1,43 @@
+# Deletes the branches whose changes are all already in a base branch (main by default), by hand only.
+# main and the base itself are always kept; a branch with any change the base lacks is kept too.
+# "Already in" means merged, or the same changes applied there by another commit (git cherry).
+name: Prune merged branches
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Branch the others must already be in
+        required: true
+        default: main
+      dry_run:
+        description: Only list what would be deleted
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Delete branches already in the base
+        env:
+          BASE: ${{ inputs.base }}
+          DRY: ${{ inputs.dry_run }}
+        run: |
+          git fetch --prune origin
+          git rev-parse --verify "origin/$BASE" >/dev/null
+          for b in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin); do
+            case "$b" in HEAD|main|gh-pages|"$BASE") continue;; esac
+            if git merge-base --is-ancestor "origin/$b" "origin/$BASE" || ! git cherry "origin/$BASE" "origin/$b" | grep -q '^+'; then
+              echo "already in $BASE: $b"
+              [ "$DRY" = "true" ] || git push origin --delete "$b"
+            else
+              echo "kept (changes not in $BASE): $b"
+            fi
+          done
